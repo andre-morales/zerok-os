@@ -1,0 +1,243 @@
+[BITS 16]
+[CPU 8086]
+[ORG 0x0600]
+
+; -- Macros that make the code easier on the eyes --
+%include "ext/stdconio_h.asm"
+%macro PrintNumber 1
+	push %1
+	call PrintNumber16
+%endmacro
+
+; -- [0x500 - 0x600] Stack
+; -- [0x600 - 0x800] MBR Relocation Address
+; -- [0x800 - 0xA00] Loaded MBR
+; -- [0xA00 - 0x1400] Stage 1.5
+
+%define STACK_RELOCATION_ADDRESS 0x0600
+%define STAGE10_LOAD_SEGMENT 0x0080
+%define STAGE15_SEGMENT (STAGE10_LOAD_SEGMENT + 0x20)
+%define BYTES_PER_SECTOR_TEST_PAGE_SIZE (4096 + 1)
+%define STAGE15_SIZE 512 + 5 * 512
+
+Entry:	
+	; Set up stack and clear segment registers
+	cli
+	xor cx, cx
+	mov ss, cx
+	mov sp, STACK_RELOCATION_ADDRESS 
+	mov es, cx
+	
+	call .getIP
+	
+; Get IP pushed on the stack. [BX = IP]
+.getIP:
+	pop bx
+	sub bx, (.getIP - Entry) ; Calculate correct entry point.
+	
+Relocate:	
+	; -- Relocate ourselves from --
+	; [DS:SI] -> [ES:DI]
+	; [CS:SI] -> [0000h:0900h]
+	
+	push cs 
+ pop ds
+	mov si, bx
+	mov di, sp ; Copy ourselves after the stack.
+
+	; Copies everything except the boot signature.
+	mov cl, 255 
+ rep movsw
+	
+	;;; mov ax, 0xABCD
+	;;; mov di, 0x500
+	;;; mov cl, 128
+	;;; rep stosw
+	
+	push cs         ; Save it to print it later
+	
+	mov ds, cx      ; Set DS back to 0.	
+	jmp 0000h:Start ; Far jump to known safe location
+
+; -- Here it's safe to refer to our own data (strings, functions...) --
+Start:	
+	; Print welcome message followed by boot info
+	Print(Constants.string1)	
+	
+	; Print boot CS:IP
+	call PrintNumber16
+	Putch(':')
+	PrintNumber(bx) 
+	
+	; Boot drive
+	Print(Constants.string2)	
+	xor dh, dh
+	PrintNumber(dx)
+	
+	; Discover drive sector size and print it
+	Print(Constants.string3)
+	
+	; -- Figure out how many bytes per sector by brute forcing such discovery. --
+	; Basically fills two separate areas in RAM with different contents,
+	; then, loads the same first drive sector into both of them. And finnaly,
+	; compare the two areas until they differ.
+	mov bp, BYTES_PER_SECTOR_TEST_PAGE_SIZE
+	
+	; First area at 0x0800 [0080h:0000h]
+	mov ax, STAGE10_LOAD_SEGMENT    
+	mov es, ax
+	xor di, di
+	
+	; Fill first area [0080h:0000h] with AL (0xB0).
+	mov cx, bp 
+	rep stosb
+	
+	; Fill second area [0080h:1004h] with AL (0xB1).
+	inc ax
+	mov cx, bp 
+	rep stosb
+	
+	; Reset drive system
+	xor ax, ax
+	int 13h 
+	
+	; Read sector to first area
+	mov ax, 02_01h ; Read drive, read a single sector
+	push ax
+	inc cx         ; CH = Cylinder (0), CL = Sector (1)
+	xor dh, dh     ; Head 0
+	xor bx, bx     ; [ES:BX] = [00B0h:0000h]
+	int 13h
+	
+	; Read the same sector to second area
+	pop ax
+	mov bx, bp ; [ES:BX] = [00B0h:1004h]
+	int 13h
+	
+	; Compare [ES:DI](first area) and [DS:SI](second area)
+	xor di, di
+	mov si, STAGE10_LOAD_SEGMENT * 0x10 + BYTES_PER_SECTOR_TEST_PAGE_SIZE
+	mov cx, bp
+	repe cmpsb ; Repeat while they're equal. Stop when encountering a mismatch.
+	
+	dec di
+		
+	PrintNumber(di) ; Print sector size discovered
+	
+	Print(Constants.string4)	
+	; Save drive number [DL] and HEAD[DH] = 0  
+	push dx      
+
+	; Divide stage size that by the sector size
+	xor dx, dx
+	mov ax, STAGE15_SIZE
+	div di
+
+	; Print how many sectors to load
+	inc ax ; Always load 1 sector more (round up)
+	PrintNumber(ax)
+	Print(Constants.string5)
+
+	; --- Read AL Sectors ---
+	pop dx ; Get drive number back
+	
+	mov ah, 02  ; AH = 02: Read drive ; AL = Sectors to read
+	xor bx, bx  ; Load drive sectors at [ES:BX] = [0080:0000]
+	mov cl, 01  ; CH = Cylinder 0, CL = Sector 1
+	int 13h     ; Read
+
+	mov ax, [STAGE15_SEGMENT * 0x10]
+	cmp ax, 'Xt'
+	jne SignatureWrong
+
+	Print(Constants.string6)
+	
+	jmp STAGE15_SEGMENT:0002h ; Jump to stage 2 after byte signature [00A0h:0002h]
+
+SignatureWrong:
+	Print(Constants.string7)
+	PrintNumber(ax)
+	jmp $ ; Halt
+
+putch: 
+	push bx
+	
+	mov ah, 0Eh
+	xor bh, bh
+	int 10h
+	
+	pop bx
+ret
+	
+printStr: 
+	push ax
+	
+	.char:
+		lodsb
+		test al, al
+		jz .end
+	
+		call putch
+	jmp .char
+	.end:
+	
+	pop ax
+ret 
+
+; Prints 16 bit hexadecimal number.
+PrintNumber16:
+	Putch('0')	
+	Putch('x')	
+	
+	pop cx ; Return address
+	pop ax ; Get number
+	push cx 
+	
+	push dx
+			
+	mov cx, 16
+	call .printNumber
+	
+	pop dx
+ret
+	
+	.printNumber:
+		push ax
+		push dx
+		
+		xor dx, dx
+		div cx            ; AX = Quotient, DX = Remainder
+		test ax, ax       ; Is quotient zero?
+		
+		jz .printDigit    ; Yes, just print the digit in the remainder.
+		call .printNumber ; No, recurse and divide the quotient by 16 again. Then print the digit in the remainder.
+		
+		.printDigit:
+		mov al, dl
+		add al, '0'
+		cmp al, '9'
+		jl .putc
+		
+		add al, 7
+		
+		.putc:
+		call putch
+	
+		pop dx
+		pop ax
+    ret
+
+Constants:
+	.string1: db " -- XtBootMgr --", 0Dh, 0Ah, "Booted at ", 0
+	.string2: db " from drive ", 0
+	.string3: db ". ", 0Dh, 0Ah, "Sector size is... ", 0
+	.string4: db " bytes.", 0Dh, 0Ah, "Loading ", 0
+	.string5: db " sectors...", 0
+	.string6: db " Loaded, OK!", 0
+	.string7: db "", 0Dh, 0Ah, "Stage 1.5 is missing! Is it installed on sector 2?", 0Dh, 0Ah, "Bad signature: ", 0
+
+times 440-($-$$) db 0x90 ; Fill the rest of the boostsector code with no-ops
+dd 0x00000000            ; 4 bytes reserved for drive unique ID.
+dw 0x000                 ; Reserved 2 bytes after UUID
+times 64 db 0x00         ; 64 bytes reserved to partition table
+dw 0xAA55                ; Boot signature
