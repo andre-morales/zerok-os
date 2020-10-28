@@ -10,17 +10,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- *
- * @author Andre
+ * @author André Morales
+ * @version 0.1.3
+ * # Last edit: 27/10/2020
  */
-public class CASM {
 
+public class CASM {
 	public static void main(String[] args) {
 		try {
-			String baseName = args[0];
-			String csm = baseName + ".csm";
+			String csm = args[0];
+			String asm = "build.asm/" + csm + ".asm";
+			String out = args[1];
 			new File("build.asm").mkdir();
-			String asm = "build.asm/" + baseName + ".asm";
 
 			FileReader fr = new FileReader(csm);
 			BufferedReader br = new BufferedReader(fr);
@@ -63,7 +64,7 @@ public class CASM {
 			br.close();
 			fw.close();
 
-			exec("nasm", asm, "-o" + baseName + ".img");
+			exec("nasm", asm, "-o" + out);
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}

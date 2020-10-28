@@ -1,6 +1,6 @@
 [BITS 16]
 [CPU 8086]
-[ORG 0x0600]
+[ORG 0x3C00]
 
 ; -- Macros that make the code easier on the eyes --
 %include "ext/stdconio_h.asm"
@@ -9,23 +9,23 @@
 	call PrintNumber16
 %endmacro
 
-; -- [0x500 - 0x600] Stack
-; -- [0x600 - 0x800] MBR Relocation Address
-; -- [0x800 - 0xA00] Loaded MBR
-; -- [0xA00 - 0x1400] Stage 1.5
+; -- [0x800 - 0x1A00] Loaded sectors (MBR, Stage 1.5)
+; -- [0xA00 - 0x1A00] Stage 1.5 code
+; -- [0x800 - 0x2802] Test pages
+; -- [0x3C00 - 0x3E00] Relocation Address
 
-%define STACK_RELOCATION_ADDRESS 0x0600
+%define RELOCATION_ADDRESS 0x3C00
 %define STAGE10_LOAD_SEGMENT 0x0080
 %define STAGE15_SEGMENT (STAGE10_LOAD_SEGMENT + 0x20)
 %define BYTES_PER_SECTOR_TEST_PAGE_SIZE (4096 + 1)
-%define STAGE15_SIZE 512 + 5 * 512
+%define STAGE15_SIZE 512 + 8 * 512
 
 Entry:	
 	; Set up stack and clear segment registers
 	cli
 	xor cx, cx
 	mov ss, cx
-	mov sp, STACK_RELOCATION_ADDRESS 
+	mov sp, RELOCATION_ADDRESS 
 	mov es, cx
 	
 	call .getIP
