@@ -1,3 +1,8 @@
+; Author:   André Morales 
+; Version:  1.1
+; Creation: 06/10/2020
+; Modified: 24/10/2020
+
 %define NL 0Ah
 %define CR 0Dh
 %define NLCR CR, NL

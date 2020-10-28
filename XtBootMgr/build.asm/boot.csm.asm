@@ -2,7 +2,11 @@
 [CPU 8086]
 [ORG 0x3C00]
 
-; -- Macros that make the code easier on the eyes --
+; Author:   André Morales 
+; Version:  2.1
+; Creation: 06/10/2020
+; Modified: 28/10/2020
+
 %include "ext/stdconio_h.asm"
 %macro PrintNumber 1
 	push %1

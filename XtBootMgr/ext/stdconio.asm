@@ -1,3 +1,8 @@
+; Author:   André Morales 
+; Version:  1.9
+; Creation: 05/10/2020
+; Modified: 25/10/2020
+
 putch: 
 	push ax
 	push bx

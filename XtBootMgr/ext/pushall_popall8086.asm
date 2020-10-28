@@ -1,3 +1,8 @@
+; Author:   André Morales 
+; Version:  1.1
+; Creation: 06/10/2020
+; Modified: 08/10/2020
+
 ; --- Emulated Push All ---
 pushAll:    
     push bp

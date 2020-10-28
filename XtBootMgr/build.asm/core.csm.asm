@@ -1,6 +1,11 @@
 [BITS 16]
 [CPU 8086]
 
+; Author:   André Morales 
+; Version:  0.37.1
+; Creation: 07/10/2020
+; Modified: 28/10/2020
+
 %define STACK_ADDRESS 0xA00
 %define PARTITION_ARRAY 0x1B00
 
@@ -11,7 +16,6 @@
 ; -- [0x2000] Generic stuff buffer
 %include "ext/enter_leave8086_h.asm"
 %include "ext/stdconio_h.asm"
-%include "core_h.asm"
 
 db 'Xt' ; Signature
 
@@ -23,15 +27,9 @@ Start:
 	xor ax, ax 
  mov es, ax ; Set ES to 0
 	
-	; Save drive number
-	mov [drive], dl
-	
-	; Save bytes per sector.
-	mov [drive.CHS_bytesPerSector], di
-	
+	mov [drive], dl ; Save drive number
+	mov [drive.CHS_bytesPerSector], di ; Save bytes per sector.
 	sti           ; Reenable interrupt
-
-	call DBG_ClearStack
 
 	Print(Constants.string1)
 	Print(Constants.string2)
@@ -49,7 +47,7 @@ Start:
 	xor ax, ax
 	push ax 
  push ax ; LBA 0. (MBR)
-	push ax              ; In root mbr.
+	push ax           ; In root mbr.
 	call getPartitionMap
 	
 	Print(Constants.string4)
@@ -498,118 +496,50 @@ DrawMenu:
 	pop bp
 ret 
 
-DBG_RegDump: 
-	; IP      [BP + 2] 
-	push bp ; [BP + 0]
-	mov bp, sp
-	push ax ; [BP - 2]
-	push bx
-	push cx
-	push dx
-	push si
-	push di
-	push cs
-	push ds
-	push es
-	push ss
-	Print(Constants.string33) 
- PrintHexNum [bp - 2]
-	Print(Constants.string34) 
- PrintHexNum [bp - 4]
-	Print(Constants.string35) 
- PrintHexNum [bp - 6]
-	Print(Constants.string36) 
- PrintHexNum [bp - 8]
-	
-	Print(Constants.string37)
-	lea ax, [bp + 4]
-	call printHexNumber
-	Print(Constants.string38) 
- PrintHexNum [bp - 0]
-	Print(Constants.string39) 
- PrintHexNum [bp - 10]
-	Print(Constants.string40) 
- PrintHexNum [bp - 12]
-	
-	Print(Constants.string41) 
- PrintHexNum [bp - 14]
-	Print(Constants.string42) 
- PrintHexNum [bp - 16]
-	Print(Constants.string43) 
- PrintHexNum [bp - 18]
-	Print(Constants.string44) 
- PrintHexNum [bp - 20]
-	
-	add sp, 4 * 2
-	pop di
-	pop si
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-	mov sp, bp
-	pop bp
-ret 
+; DBG_RegDump: {
+;	; IP      [BP + 2] 
+;	push bp ; [BP + 0]
+;	mov bp, sp
+;	push ax ; [BP - 2]
+;	push bx
+;	push cx
+;	push dx
+;	push si
+;	push di
+;	push cs
+;	push ds
+;	push es
+;	push ss
+;	Print(Constants.string33) | PrintHexNum [bp - 2]
+;	Print(Constants.string34) | PrintHexNum [bp - 4]
+;	Print(Constants.string35) | PrintHexNum [bp - 6]
+;	Print(Constants.string36) | PrintHexNum [bp - 8]
+;	
+;	Print(Constants.string37)
+;	lea ax, [bp + 4]
+;	call printHexNumber
+;	Print(Constants.string38) | PrintHexNum [bp - 0]
+;	Print(Constants.string39) | PrintHexNum [bp - 10]
+;	Print(Constants.string40) | PrintHexNum [bp - 12]
+;	
+;	Print(Constants.string41) | PrintHexNum [bp - 14]
+;	Print(Constants.string42) | PrintHexNum [bp - 16]
+;	Print(Constants.string43) | PrintHexNum [bp - 18]
+;	Print(Constants.string44) | PrintHexNum [bp - 20]
+;	
+;	add sp, 4 * 2
+;	pop di
+;	pop si
+;	pop dx
+;	pop cx
+;	pop bx
+;	pop ax
+;	mov sp, bp
+;	pop bp
+; ret }
 
-DBG_PrintHex: 
-	push bp
-	mov bp, sp
-	push ds 
- push si
-	push ax 
- push bx 
- push cx 
- push dx
-	
-	xor bx, bx
-	xor dh, dh
-	mov cx, [bp + 8]
-	lds si, [bp + 4]
-	.l1:
-		lodsb
-		mov dl, al
-		cmp dx, 15
-		jg .print
-		
-		Putch('0')
-		
-		.print:
-		mov ax, dx
-		call printHexNumber
-		Putch(' ')
-		
-		inc bx
-		cmp bx, [bp + 10]
-		jne .l2
-		
-		xor bx, bx
-		Putch(NL)
-		
-		.l2:
-	loop .l1
-	pop dx 
- pop cx 
- pop bx 
- pop ax
-	pop si 
- pop ds
-	pop bp
-ret 
-	
-DBG_ClearStack: 
-	pop bx     ; Get return address
-	mov ax, bp ; Save BP in other register
-	mov bp, sp
-	
-	mov cx, 512
-	mov dx, 0xFFFF
-	.store:
-		push dx
-	loop .store
-	
-	mov sp, bp
-	mov bp, ax
-jmp bx 
+; %include 'ext/dbg_printhex.asm'
+; %include 'ext/dbg_clearstack.asm'	
 	
 getDriveLBAProperties: 
 	mov dl, [drive]
@@ -746,12 +676,12 @@ ret
 DivisionErrorHandler: 
 	push bp
 	mov bp, sp
-	push ax
-	push bx
-	push cx
-	push dx
-	push si
-	push di
+	push ax 
+ push bx 
+ push cx 
+ push dx
+	push si 
+ push di
 	
 	Print(Constants.string45)
 	Print(Constants.string46)
@@ -777,7 +707,7 @@ DivisionErrorHandler:
  PrintHexNum [bp - 12]
 	Print(Constants.string56)
 	jmp $
-iret 
+
 
 lbaDAPS:  db 16       ; Size
 	      db 0x00     ; Always 0
@@ -831,7 +761,7 @@ PartitionTypeNamePtrArr:
 
 Constants:
 	.string1: db "", 0Dh, 0Ah, "", 0Ah, "--- Xt Generic Boot Manager ---", 0
-	.string2: db "", 0Dh, 0Ah, "Version: 0.37", 0Dh, 0Ah, "", 0
+	.string2: db "", 0Dh, 0Ah, "Version: 0.37.1", 0Dh, 0Ah, "", 0
 	.string3: db "", 0Dh, 0Ah, "Press any key to read the partition map.", 0
 	.string4: db "", 0Dh, 0Ah, "Partition map read.", 0
 	.string5: db "", 0Dh, 0Ah, "Press any key to enter boot select...", 0Dh, 0Ah, "", 0
