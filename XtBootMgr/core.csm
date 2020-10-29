@@ -2,7 +2,7 @@
 [CPU 8086]
 
 ; Author:   André Morales 
-; Version:  0.37.1
+; Version:  0.38.1
 ; Creation: 07/10/2020
 ; Modified: 28/10/2020
 
@@ -30,7 +30,7 @@ Start:
 	sti           ; Reenable interrupt
 
 	Print(."\N\n--- Xt Generic Boot Manager ---")
-	Print(."\NVersion: 0.37.1\N")
+	Print(."\NVersion: 0.38.1\N")
 	
 	; Set up division error int handler.
 	mov word [es:0000], DivisionErrorHandler
@@ -48,8 +48,9 @@ Start:
 	call getPartitionMap
 	
 	Print(."\NPartition map read.")
-	sub di, PARTITION_ARRAY
 	mov ax, di
+	sub ax, PARTITION_ARRAY
+	
 	mov cl, 9
 	div cl
 	mov [partitionMapSize], al
@@ -58,38 +59,65 @@ Start:
 	Pause()
 		
 	mov word [cursor], 0
+	
 	MainMenu:
 		call clearScreen
+		mov bx, 00_00h
+		mov ax, 25_17h
+		call drawSquare
+	
+		mov dx, 01_01h | call setCursor
 		
-	MenuSelect:
-		call DrawMenu
+		Print(."Partitions on drive 0x")
+		
+		xor ah, ah | mov al, [drive]
+		call printHexNumber
+	
+	MenuSelect:	
+		call DrawMenu	
 			
 		Getch()
 		cmp ah, 48h | je .upKey
 		cmp ah, 50h | je .downKey
-	
-		cmp ah, 1Ch
-		;je EnterPartition
-		jmp MainMenu
+		cmp ah, 1Ch | je .enterKey
+		jmp MenuSelect
 		
 		.upKey:
-		mov ax, [cursor]
-		test ax, ax | jnz .L3
-		
-		mov al, [partitionMapSize]
-		
-		.L3:
-		dec ax
-		div byte [partitionMapSize]
-		mov [cursor], ah
+			mov ax, [cursor]
+			test ax, ax | jnz .L3
+			
+			mov al, [partitionMapSize]
+			
+			.L3:
+			dec ax
+			div byte [partitionMapSize]
+			mov [cursor], ah
 		jmp MenuSelect
 		
 		.downKey:
-		mov ax, [cursor]
-		inc ax
-		div byte [partitionMapSize]
-		mov [cursor], ah
+			mov ax, [cursor]
+			inc ax
+			div byte [partitionMapSize]
+			mov [cursor], ah
 		jmp MenuSelect
+		
+		.enterKey:
+			mov al, 9 | mul byte [cursor]
+			mov di, ax
+			
+			lodsb
+			cmp byte [es:PARTITION_ARRAY + di], 05h | jne .L4
+			Print(."\N\N You can't boot an extended partition.")
+			jmp BackToMainMenu
+			
+			.L4:
+			Print(."\N\N Booting...")
+		jmp BackToMainMenu
+		
+		BackToMainMenu:
+			Pause()
+			call clearScreen
+		jmp MainMenu
 
 ; void (int32 LBA)
 readSector: {
@@ -106,8 +134,8 @@ readSector: {
 	PrintHexNum [bp + 4]
 	Print(.". ")
 	
-	cmp byte [drive.LBA_support], 2
-	jmp .LBAtoCHS ; LBA not supported. Try CHS translation.
+	cmp byte [drive.LBA_support], 0
+	jne .LBAtoCHS ; LBA not supported. Try CHS translation.
 	
 	; -- Reading as LBA --
 	mov ax, [bp + 4] | mov [lbaDAPS.lba + 0], ax
@@ -121,9 +149,9 @@ readSector: {
 	; -- Reading as CHS (Convert LBA to CHS) --
 	.LBAtoCHS: {		
 		; Calculate cylinder to BP - 2
-		mov dx, [bp + 6] | mov ax, [bp + 4]             ; Get LBA
-		div word [drive.CHS_sectorsTimesHeads]          ; LBA / (HPC * SPT) | DX:AX / (HPC * SPT)
-		mov [bp - 2], ax                                ; Save Cylinders
+		mov dx, [bp + 6] | mov ax, [bp + 4]          ; Get LBA
+		div word [drive.CHS_sectorsTimesHeads]       ; LBA / (HPC * SPT) | DX:AX / (HPC * SPT)
+		mov [bp - 2], ax                             ; Save Cylinders
 		
 		; Print cylinder
 		Print(."(")
@@ -337,8 +365,8 @@ getDriveGeometry: {
 	call getDriveLBAProperties
 	
 	mov al, [drive.LBA_support]
-	cmp al, 2 | je .printLBAProps
-	cmp al, 1 | je .noDriveLBA
+	test al, al | jz .printLBAProps
+	cmp al, 1   | je .noDriveLBA
 	Print(."\N Error: BIOS doesn't support LBA.")
 	jmp .End
 	
@@ -356,37 +384,30 @@ ret }
 DrawMenu: {
 	push bp
 	mov bp, sp
-	sub sp, 4
+	sub sp, 2
 	mov word [bp - 2], 0
-	mov [bp - 4], es
+	push ds
+	push es
 	
-	mov bx, 00_00h
-	mov ax, 25_17h
-	call drawSquare
+	mov dx, 03_03h | call setCursor
 	
-	mov dx, 01_01h
-	call setCursor
-	
-	Print(."Partitions on drive 0x")
-	
-	mov ah, 0 | mov al, [drive]
-	call printHexNumber
-	
-	inc dh | call setCursor
-	
-	mov dx, 03_03h
-	
-	xor di, di | mov es, di
 	mov di, PARTITION_ARRAY
-	mov cl, 0
+	xor cl, cl
 	.drawPartition:
+		xor ax, ax | mov es, ax
+		
 		call setCursor
-		mov byte [bp - 2], 0x6F
+		mov byte [bp - 2], 0x6F ; Default color, white on orange.
 		
-		cmp cl, [cursor] | jne .printSpace
-		mov byte [bp - 2], 0x1F
+		cmp cl, [cursor] | jne .printIndent ; Is this the selected item? If not, skip.
+		cmp byte [es:di], 05h | jne .blueBg ; Is this a bootable item type? If it is, set the bg to blue.
+		mov byte [bp - 2], 0x4F             ; Unbootable selected color, white on red.
+		jmp .printIndent
 		
-		.printSpace:
+		.blueBg:
+		mov byte [bp - 2], 0x1F             ; Bootable selected color, white on blue.		
+		
+		.printIndent:
 		cmp byte [bp - 1], 0 ; Listing primary partitions?
 		je .printTypeName
 		
@@ -403,35 +424,23 @@ DrawMenu: {
 				
 		PrintColor ." (", [bp - 2]	
 		
-		; Save a bunch of registers
-		push cx | push dx
-		push es | push di
-		
-		; Push size of partition to stack
-		push word [es:di + 5]
-		push word [es:di + 7]
-		
-		; Set ES to DS
-		push ds | pop es
-		
-		; Zero out string
-		mov si, partitionSizeStrBuff
-		mov di, si
-		mov al, 0
-		mov cx, 6
-		rep stosb
-		
-		pop dx | pop ax ; Get partition size from stack 
-		mov cx, 2048 | div cx
-		mov di, si
-		call decNumToStr
-		
-		mov al, [bp - 2]
-		call printColorStr
-		
-		; Get the bunch of registers back
-		pop di | pop es
-		pop dx | pop cx
+		{
+			push dx | push di
+			
+			mov ax, [es:di + 5]
+			mov dx, [es:di + 7]
+			mov bx, 2048 | div bx
+			
+			mov si, partitionSizeStrBuff
+			mov es, [bp - 4] ; Set ES to DS
+			mov di, si
+			call decNumToStr
+			
+			mov al, [bp - 2]
+			call printColorStr
+			
+			pop di | pop dx
+		}
 		
 		PrintColor ." MiB)", [bp - 2]
 		
@@ -440,7 +449,7 @@ DrawMenu: {
 		inc cx
 	cmp cl, [partitionMapSize] | jne .drawPartition
 
-	mov es, [bp - 4]
+	pop es
 	mov sp, bp
 	pop bp
 ret }
@@ -507,7 +516,7 @@ getDriveLBAProperties: {
 		
 	mov ax, [0x2000 + 0x18]                  ; Get bytes/sector
 	pop ds                                   ; Get DS back
-	mov byte [drive.LBA_support], 2          ; LBA is supported
+	mov byte [drive.LBA_support], 0          ; LBA is supported
 	mov word [drive.LBA_bytesPerSector], ax  ; Save bytes/sector
 	jmp .End
 	
@@ -516,7 +525,7 @@ getDriveLBAProperties: {
 	jmp .End
 	
 	.NoBiosLBA:
-	mov byte [drive.LBA_support], 0
+	mov byte [drive.LBA_support], 2
 	
 	.End:
 ret }
@@ -612,6 +621,30 @@ drawSquare: {
 	mov sp, bp
 	pop bp
 ret }
+
+clearRect: {
+	push bp
+	mov bp, sp
+	push ax | push bx | push cx | push dx
+	
+	mov ax, 0600h    ; AH = Scroll up, AL = Clear
+	mov bh, [bp + 4] ; Foreground / Background
+	mov cx, [bp + 8] ; Origin
+	mov dx, [bp + 6] ; Destination
+	int 10h
+		
+	pop dx | pop cx | pop bx | pop ax
+	pop bp
+	pop ax
+	add sp, 6
+jmp ax }
+
+clearScreen:
+	xor ax, ax           | push ax
+	mov ax, 18_27h       | push ax
+	mov ax, 0b0_110_1111 | push ax
+	call clearRect
+ret
 		
 %include 'ext/stdconio.asm'
 %include 'ext/pushall_popall8086.asm'
@@ -622,7 +655,7 @@ DivisionErrorHandler: {
 	push ax | push bx | push cx | push dx
 	push si | push di
 	
-	Print(."\NDivision overflow or divizion by zero.\r")
+	Print(."\NDivision overflow or division by zero.\r")
 	Print(."\NError occurred at: ")
 	PrintHexNum [bp + 4]
 	Print(."h:")

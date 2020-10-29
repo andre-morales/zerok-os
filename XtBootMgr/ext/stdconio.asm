@@ -71,6 +71,7 @@ printColorStr:
 	push dx
 	
 	; Save color
+	xor bh, bh
 	mov bl, al
 	push bx
 	
@@ -160,11 +161,12 @@ printDecNumber:
 	
 	push ss
 	pop es
+
+	lea di, [bp - 6]
+	call decNumToStr
+	
 	push ss
 	pop ds
-	
-	mov di, [bp - 6]
-	call decNumToStr
 	
 	mov si, di
 	call printStr
@@ -252,21 +254,3 @@ ret
 		pop dx
 		pop ax
     ret
-	
-clearScreen:
-	push ax
-	push bx
-	push cx
-	push dx
-	
-	mov ax, 0600h        ; AH = Scroll up, AL = Clear
-	mov bh, 0b0_110_1111 ; Foreground / Background
-	xor cx, cx           ; Start on top left corner
-	mov dx, 18_27h       ; End on bottom right corner
-	int 10h
-		
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-ret

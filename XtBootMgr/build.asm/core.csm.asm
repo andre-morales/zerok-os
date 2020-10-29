@@ -51,8 +51,9 @@ Start:
 	call getPartitionMap
 	
 	Print(Constants.string4)
-	sub di, PARTITION_ARRAY
 	mov ax, di
+	sub ax, PARTITION_ARRAY
+	
 	mov cl, 9
 	div cl
 	mov [partitionMapSize], al
@@ -61,41 +62,73 @@ Start:
 	Pause()
 		
 	mov word [cursor], 0
+	
 	MainMenu:
 		call clearScreen
+		mov bx, 00_00h
+		mov ax, 25_17h
+		call drawSquare
+	
+		mov dx, 01_01h 
+ call setCursor
 		
-	MenuSelect:
-		call DrawMenu
+		Print(Constants.string6)
+		
+		xor ah, ah 
+ mov al, [drive]
+		call printHexNumber
+	
+	MenuSelect:	
+		call DrawMenu	
 			
 		Getch()
 		cmp ah, 48h 
  je .upKey
 		cmp ah, 50h 
  je .downKey
-	
-		cmp ah, 1Ch
-		;je EnterPartition
-		jmp MainMenu
+		cmp ah, 1Ch 
+ je .enterKey
+		jmp MenuSelect
 		
 		.upKey:
-		mov ax, [cursor]
-		test ax, ax 
+			mov ax, [cursor]
+			test ax, ax 
  jnz .L3
-		
-		mov al, [partitionMapSize]
-		
-		.L3:
-		dec ax
-		div byte [partitionMapSize]
-		mov [cursor], ah
+			
+			mov al, [partitionMapSize]
+			
+			.L3:
+			dec ax
+			div byte [partitionMapSize]
+			mov [cursor], ah
 		jmp MenuSelect
 		
 		.downKey:
-		mov ax, [cursor]
-		inc ax
-		div byte [partitionMapSize]
-		mov [cursor], ah
+			mov ax, [cursor]
+			inc ax
+			div byte [partitionMapSize]
+			mov [cursor], ah
 		jmp MenuSelect
+		
+		.enterKey:
+			mov al, 9 
+ mul byte [cursor]
+			mov di, ax
+			
+			lodsb
+			cmp byte [es:PARTITION_ARRAY + di], 05h 
+ jne .L4
+			Print(Constants.string7)
+			jmp BackToMainMenu
+			
+			.L4:
+			Print(Constants.string8)
+		jmp BackToMainMenu
+		
+		BackToMainMenu:
+			Pause()
+			call clearScreen
+		jmp MainMenu
 
 ; void (int32 LBA)
 readSector: 
@@ -109,13 +142,13 @@ readSector:
 	push cx 
  push dx
 	
-	Print(Constants.string6)
+	Print(Constants.string9)
 	PrintHexNum [bp + 6]
 	PrintHexNum [bp + 4]
-	Print(Constants.string7)
+	Print(Constants.string10)
 	
-	cmp byte [drive.LBA_support], 2
-	jmp .LBAtoCHS ; LBA not supported. Try CHS translation.
+	cmp byte [drive.LBA_support], 0
+	jne .LBAtoCHS ; LBA not supported. Try CHS translation.
 	
 	; -- Reading as LBA --
 	mov ax, [bp + 4] 
@@ -133,12 +166,12 @@ readSector:
 	.LBAtoCHS: 		
 		; Calculate cylinder to BP - 2
 		mov dx, [bp + 6] 
- mov ax, [bp + 4]             ; Get LBA
-		div word [drive.CHS_sectorsTimesHeads]          ; LBA / (HPC * SPT) | DX:AX / (HPC * SPT)
-		mov [bp - 2], ax                                ; Save Cylinders
+ mov ax, [bp + 4]          ; Get LBA
+		div word [drive.CHS_sectorsTimesHeads]       ; LBA / (HPC * SPT) | DX:AX / (HPC * SPT)
+		mov [bp - 2], ax                             ; Save Cylinders
 		
 		; Print cylinder
-		Print(Constants.string8)
+		Print(Constants.string11)
 		call printHexNumber
 		
 		cmp ax, [drive.CHS_cylinders] 
@@ -162,16 +195,16 @@ readSector:
 		div word [drive.CHS_headsPerCylinder]            ; (LBA / SPT) % HPC # (LBA / CX) % HPC
 		mov [bp - 4], dl
 		
-		Print(Constants.string9)
+		Print(Constants.string12)
 		xor ah, ah
 		mov al, [bp - 4]
 		call printHexNumber
 		
-		Print(Constants.string10)
+		Print(Constants.string13)
 		xor ah, ah
 		mov al, [bp - 3]
 		call printHexNumber
-		Print(Constants.string11)
+		Print(Constants.string14)
 		
 		; Cylinder
 		mov ax, [bp - 2]
@@ -231,17 +264,17 @@ getPartitionMap:
  je .GetPartitionEntries ; Did it read properly?
 	
 	; AX is not 0. It failed somehow.
-	Print(Constants.string12)
+	Print(Constants.string15)
 	cmp ax, 1 
  je .OutOfRangeCHS
-	Print(Constants.string13)
+	Print(Constants.string16)
 	jmp .ErrorOut
 	
 	.OutOfRangeCHS:
-	Print(Constants.string14)
+	Print(Constants.string17)
 	
 	.ErrorOut:
-	Print(Constants.string15)
+	Print(Constants.string18)
 	jmp .End
 	
 	.GetPartitionEntries:
@@ -333,11 +366,11 @@ getCurrentVideoMode:
 	mov ah, 0Fh 
  int 10h
 	push ax
-	Print(Constants.string16)
+	Print(Constants.string19)
 	xor ah, ah
 	call printHexNumber
 	
-	Print(Constants.string17)
+	Print(Constants.string20)
 	pop ax
 	mov al, ah
 	xor ah, ah
@@ -345,30 +378,30 @@ getCurrentVideoMode:
 ret 
 
 getDriveGeometry: 
-	Print(Constants.string18)
-	Print(Constants.string19)
+	Print(Constants.string21)
+	Print(Constants.string22)
 	
 	call getDriveCHSProperties
 	
 	; -- Print CHS properties --
-	Print(Constants.string20)
+	Print(Constants.string23)
 	PrintDecNum [drive.CHS_bytesPerSector]
 	
 	xor ah, ah
-	Print(Constants.string21)
+	Print(Constants.string24)
 	mov al, [drive.CHS_sectorsPerTrack]
 	call printDecNumber
 
-	Print(Constants.string22)
+	Print(Constants.string25)
 	PrintDecNum [drive.CHS_headsPerCylinder]
 	
-	Print(Constants.string23)
+	Print(Constants.string26)
 	PrintDecNum [drive.CHS_sectorsTimesHeads]
 	
-	Print(Constants.string24)
+	Print(Constants.string27)
 	PrintDecNum [drive.CHS_cylinders]
 	
-	Print(Constants.string25)
+	Print(Constants.string28)
 	call getDriveLBAProperties
 	
 	mov al, [drive.LBA_support]
@@ -376,15 +409,15 @@ getDriveGeometry:
  je .printLBAProps
 	cmp al, 1 
  je .noDriveLBA
-	Print(Constants.string26)
+	Print(Constants.string29)
 	jmp .End
 	
 	.noDriveLBA:
-	Print(Constants.string27)
+	Print(Constants.string30)
 	jmp .End
 	
 	.printLBAProps:
-	Print(Constants.string28)
+	Print(Constants.string31)
 	PrintDecNum [drive.LBA_bytesPerSector]
 	
 	.End:
@@ -393,45 +426,38 @@ ret
 DrawMenu: 
 	push bp
 	mov bp, sp
-	sub sp, 4
+	sub sp, 2
 	mov word [bp - 2], 0
-	mov [bp - 4], es
+	push ds
+	push es
 	
-	mov bx, 00_00h
-	mov ax, 25_17h
-	call drawSquare
-	
-	mov dx, 01_01h
-	call setCursor
-	
-	Print(Constants.string29)
-	
-	mov ah, 0 
- mov al, [drive]
-	call printHexNumber
-	
-	inc dh 
+	mov dx, 03_03h 
  call setCursor
 	
-	mov dx, 03_03h
-	
-	xor di, di 
- mov es, di
 	mov di, PARTITION_ARRAY
-	mov cl, 0
+	xor cl, cl
 	.drawPartition:
+		xor ax, ax 
+ mov es, ax
+		
 		call setCursor
-		mov byte [bp - 2], 0x6F
+		mov byte [bp - 2], 0x6F ; Default color, white on orange.
 		
 		cmp cl, [cursor] 
- jne .printSpace
-		mov byte [bp - 2], 0x1F
+ jne .printIndent ; Is this the selected item? If not, skip.
+		cmp byte [es:di], 05h 
+ jne .blueBg ; Is this a bootable item type? If it is, set the bg to blue.
+		mov byte [bp - 2], 0x4F             ; Unbootable selected color, white on red.
+		jmp .printIndent
 		
-		.printSpace:
+		.blueBg:
+		mov byte [bp - 2], 0x1F             ; Bootable selected color, white on blue.		
+		
+		.printIndent:
 		cmp byte [bp - 1], 0 ; Listing primary partitions?
 		je .printTypeName
 		
-		PrintColor Constants.string30, [bp - 2]
+		PrintColor Constants.string32, [bp - 2]
 		
 		.printTypeName:		
 		mov al, [es:di] ; Partition type
@@ -444,46 +470,30 @@ DrawMenu:
 		mov al, [bp - 2] 
  call printColorStr
 				
-		PrintColor Constants.string31, [bp - 2]	
+		PrintColor Constants.string33, [bp - 2]	
 		
-		; Save a bunch of registers
-		push cx 
- push dx
-		push es 
+		
+			push dx 
  push di
+			
+			mov ax, [es:di + 5]
+			mov dx, [es:di + 7]
+			mov bx, 2048 
+ div bx
+			
+			mov si, partitionSizeStrBuff
+			mov es, [bp - 4] ; Set ES to DS
+			mov di, si
+			call decNumToStr
+			
+			mov al, [bp - 2]
+			call printColorStr
+			
+			pop di 
+ pop dx
 		
-		; Push size of partition to stack
-		push word [es:di + 5]
-		push word [es:di + 7]
 		
-		; Set ES to DS
-		push ds 
- pop es
-		
-		; Zero out string
-		mov si, partitionSizeStrBuff
-		mov di, si
-		mov al, 0
-		mov cx, 6
-		rep stosb
-		
-		pop dx 
- pop ax ; Get partition size from stack 
-		mov cx, 2048 
- div cx
-		mov di, si
-		call decNumToStr
-		
-		mov al, [bp - 2]
-		call printColorStr
-		
-		; Get the bunch of registers back
-		pop di 
- pop es
-		pop dx 
- pop cx
-		
-		PrintColor Constants.string32, [bp - 2]
+		PrintColor Constants.string34, [bp - 2]
 		
 		add di, 9
 		inc dh
@@ -491,7 +501,7 @@ DrawMenu:
 	cmp cl, [partitionMapSize] 
  jne .drawPartition
 
-	mov es, [bp - 4]
+	pop es
 	mov sp, bp
 	pop bp
 ret 
@@ -510,22 +520,22 @@ ret
 ;	push ds
 ;	push es
 ;	push ss
-;	Print(Constants.string33) | PrintHexNum [bp - 2]
-;	Print(Constants.string34) | PrintHexNum [bp - 4]
-;	Print(Constants.string35) | PrintHexNum [bp - 6]
-;	Print(Constants.string36) | PrintHexNum [bp - 8]
+;	Print(Constants.string35) | PrintHexNum [bp - 2]
+;	Print(Constants.string36) | PrintHexNum [bp - 4]
+;	Print(Constants.string37) | PrintHexNum [bp - 6]
+;	Print(Constants.string38) | PrintHexNum [bp - 8]
 ;	
-;	Print(Constants.string37)
+;	Print(Constants.string39)
 ;	lea ax, [bp + 4]
 ;	call printHexNumber
-;	Print(Constants.string38) | PrintHexNum [bp - 0]
-;	Print(Constants.string39) | PrintHexNum [bp - 10]
-;	Print(Constants.string40) | PrintHexNum [bp - 12]
+;	Print(Constants.string40) | PrintHexNum [bp - 0]
+;	Print(Constants.string41) | PrintHexNum [bp - 10]
+;	Print(Constants.string42) | PrintHexNum [bp - 12]
 ;	
-;	Print(Constants.string41) | PrintHexNum [bp - 14]
-;	Print(Constants.string42) | PrintHexNum [bp - 16]
-;	Print(Constants.string43) | PrintHexNum [bp - 18]
-;	Print(Constants.string44) | PrintHexNum [bp - 20]
+;	Print(Constants.string43) | PrintHexNum [bp - 14]
+;	Print(Constants.string44) | PrintHexNum [bp - 16]
+;	Print(Constants.string45) | PrintHexNum [bp - 18]
+;	Print(Constants.string46) | PrintHexNum [bp - 20]
 ;	
 ;	add sp, 4 * 2
 ;	pop di
@@ -562,7 +572,7 @@ getDriveLBAProperties:
 		
 	mov ax, [0x2000 + 0x18]                  ; Get bytes/sector
 	pop ds                                   ; Get DS back
-	mov byte [drive.LBA_support], 2          ; LBA is supported
+	mov byte [drive.LBA_support], 0          ; LBA is supported
 	mov word [drive.LBA_bytesPerSector], ax  ; Save bytes/sector
 	jmp .End
 	
@@ -571,7 +581,7 @@ getDriveLBAProperties:
 	jmp .End
 	
 	.NoBiosLBA:
-	mov byte [drive.LBA_support], 0
+	mov byte [drive.LBA_support], 2
 	
 	.End:
 ret 
@@ -669,6 +679,39 @@ drawSquare:
 	mov sp, bp
 	pop bp
 ret 
+
+clearRect: 
+	push bp
+	mov bp, sp
+	push ax 
+ push bx 
+ push cx 
+ push dx
+	
+	mov ax, 0600h    ; AH = Scroll up, AL = Clear
+	mov bh, [bp + 4] ; Foreground / Background
+	mov cx, [bp + 8] ; Origin
+	mov dx, [bp + 6] ; Destination
+	int 10h
+		
+	pop dx 
+ pop cx 
+ pop bx 
+ pop ax
+	pop bp
+	pop ax
+	add sp, 6
+jmp ax 
+
+clearScreen:
+	xor ax, ax           
+ push ax
+	mov ax, 18_27h       
+ push ax
+	mov ax, 0b0_110_1111 
+ push ax
+	call clearRect
+ret
 		
 %include 'ext/stdconio.asm'
 %include 'ext/pushall_popall8086.asm'
@@ -683,29 +726,29 @@ DivisionErrorHandler:
 	push si 
  push di
 	
-	Print(Constants.string45)
-	Print(Constants.string46)
-	PrintHexNum [bp + 4]
 	Print(Constants.string47)
+	Print(Constants.string48)
+	PrintHexNum [bp + 4]
+	Print(Constants.string49)
 	PrintHexNum [bp + 2]
-	Print(Constants.string48) 
- PrintHexNum [bp - 2]
-	Print(Constants.string49) 
- PrintHexNum [bp - 4]
 	Print(Constants.string50) 
- PrintHexNum [bp - 6]
+ PrintHexNum [bp - 2]
 	Print(Constants.string51) 
+ PrintHexNum [bp - 4]
+	Print(Constants.string52) 
+ PrintHexNum [bp - 6]
+	Print(Constants.string53) 
  PrintHexNum [bp - 8]
-	Print(Constants.string52)
+	Print(Constants.string54)
 	lea ax, [bp + 8]
 	call printHexNumber
-	Print(Constants.string53) 
- PrintHexNum [bp - 0]
-	Print(Constants.string54) 
- PrintHexNum [bp - 10]
 	Print(Constants.string55) 
+ PrintHexNum [bp - 0]
+	Print(Constants.string56) 
+ PrintHexNum [bp - 10]
+	Print(Constants.string57) 
  PrintHexNum [bp - 12]
-	Print(Constants.string56)
+	Print(Constants.string58)
 	jmp $
 
 
@@ -752,76 +795,78 @@ PartitionTypeNamePtrIndexArr:
 	db 1, 1, 1, 1, 1, 1, 1, 1
 
 PartitionTypeNamePtrArr:
-	dw Constants.string57
-	dw Constants.string58
 	dw Constants.string59
 	dw Constants.string60
 	dw Constants.string61
 	dw Constants.string62
+	dw Constants.string63
+	dw Constants.string64
 
 Constants:
 	.string1: db "", 0Dh, 0Ah, "", 0Ah, "--- Xt Generic Boot Manager ---", 0
-	.string2: db "", 0Dh, 0Ah, "Version: 0.37.1", 0Dh, 0Ah, "", 0
+	.string2: db "", 0Dh, 0Ah, "Version: 0.37.2", 0Dh, 0Ah, "", 0
 	.string3: db "", 0Dh, 0Ah, "Press any key to read the partition map.", 0
 	.string4: db "", 0Dh, 0Ah, "Partition map read.", 0
 	.string5: db "", 0Dh, 0Ah, "Press any key to enter boot select...", 0Dh, 0Ah, "", 0
-	.string6: db "", 0Dh, 0Ah, "Reading 0x", 0
-	.string7: db ". ", 0
-	.string8: db "(", 0
-	.string9: db "h, ", 0
-	.string10: db "h, ", 0
-	.string11: db "h)", 0
-	.string12: db "", 0Dh, 0Ah, "Sector read failed. The error was:", 0Dh, 0Ah, " ", 0
-	.string13: db "Unknown", 0
-	.string14: db "CHS (Cylinder) address out of range", 0
-	.string15: db ".", 0Dh, 0Ah, "Ignoring the partitions at this sector.", 0
-	.string16: db "", 0Dh, 0Ah, "Current video mode: 0x", 0
-	.string17: db "", 0Dh, 0Ah, "Columns: ", 0
-	.string18: db "", 0Dh, 0Ah, "Figuring out drive properties...", 0Dh, 0Ah, "", 0
-	.string19: db "", 0Dh, 0Ah, "[ Drive geometry as CHS (AH = 02h) ]", 0
-	.string20: db "", 0Dh, 0Ah, " Bytes per Sector: ", 0
-	.string21: db "", 0Dh, 0Ah, " Sectors per Track: ", 0
-	.string22: db "", 0Dh, 0Ah, " Heads Per Cylinder: ", 0
-	.string23: db "", 0Dh, 0Ah, " HPC * SPT: ", 0
-	.string24: db "", 0Dh, 0Ah, " Cylinders: ", 0
-	.string25: db "", 0Dh, 0Ah, "[ Drive geometry as LBA (AH = 48h) ]", 0
-	.string26: db "", 0Dh, 0Ah, " Error: BIOS doesn't support LBA.", 0
-	.string27: db "", 0Dh, 0Ah, " Error: Drive doesn't support LBA.", 0
-	.string28: db "", 0Dh, 0Ah, " Bytes per Sector: ", 0
-	.string29: db "Partitions on drive 0x", 0
-	.string30: db " ", 0
-	.string31: db " (", 0
-	.string32: db " MiB)", 0
-	.string33: db "", 0Dh, 0Ah, "AX: 0x", 0
-	.string34: db " BX: 0x", 0
-	.string35: db " CX: 0x", 0
-	.string36: db " DX: 0x", 0
-	.string37: db "", 0Dh, 0Ah, "SP: 0x", 0
-	.string38: db " BP: 0x", 0
-	.string39: db " SI: 0x", 0
-	.string40: db " DI: 0x", 0
-	.string41: db "", 0Dh, 0Ah, "CS: 0x", 0
-	.string42: db " DS: 0x", 0
-	.string43: db " ES: 0x", 0
-	.string44: db " SS: 0x", 0
-	.string45: db "", 0Dh, 0Ah, "Division overflow or divizion by zero.", 0Dh, "", 0
-	.string46: db "", 0Dh, 0Ah, "Error occurred at: ", 0
-	.string47: db "h:", 0
-	.string48: db "h", 0Dh, 0Ah, "AX: 0x", 0
-	.string49: db " BX: 0x", 0
-	.string50: db " CX: 0x", 0
-	.string51: db " DX: 0x", 0
-	.string52: db "", 0Dh, 0Ah, "SP: 0x", 0
-	.string53: db " BP: 0x", 0
-	.string54: db " SI: 0x", 0
-	.string55: db " DI: 0x", 0
-	.string56: db "", 0Dh, 0Ah, "System halted.", 0
-	.string57: db "Empty", 0
-	.string58: db "Unknown", 0
-	.string59: db "FAT16B", 0
-	.string60: db "FAT32", 0
-	.string61: db "Linux", 0
-	.string62: db "Extended Partition", 0
+	.string6: db "Partitions on drive 0x", 0
+	.string7: db "", 0Dh, 0Ah, "", 0Dh, 0Ah, " You can't boot an extended partition.", 0
+	.string8: db "", 0Dh, 0Ah, "", 0Dh, 0Ah, " Booting...", 0
+	.string9: db "", 0Dh, 0Ah, "Reading 0x", 0
+	.string10: db ". ", 0
+	.string11: db "(", 0
+	.string12: db "h, ", 0
+	.string13: db "h, ", 0
+	.string14: db "h)", 0
+	.string15: db "", 0Dh, 0Ah, "Sector read failed. The error was:", 0Dh, 0Ah, " ", 0
+	.string16: db "Unknown", 0
+	.string17: db "CHS (Cylinder) address out of range", 0
+	.string18: db ".", 0Dh, 0Ah, "Ignoring the partitions at this sector.", 0
+	.string19: db "", 0Dh, 0Ah, "Current video mode: 0x", 0
+	.string20: db "", 0Dh, 0Ah, "Columns: ", 0
+	.string21: db "", 0Dh, 0Ah, "Figuring out drive properties...", 0Dh, 0Ah, "", 0
+	.string22: db "", 0Dh, 0Ah, "[ Drive geometry as CHS (AH = 02h) ]", 0
+	.string23: db "", 0Dh, 0Ah, " Bytes per Sector: ", 0
+	.string24: db "", 0Dh, 0Ah, " Sectors per Track: ", 0
+	.string25: db "", 0Dh, 0Ah, " Heads Per Cylinder: ", 0
+	.string26: db "", 0Dh, 0Ah, " HPC * SPT: ", 0
+	.string27: db "", 0Dh, 0Ah, " Cylinders: ", 0
+	.string28: db "", 0Dh, 0Ah, "[ Drive geometry as LBA (AH = 48h) ]", 0
+	.string29: db "", 0Dh, 0Ah, " Error: BIOS doesn't support LBA.", 0
+	.string30: db "", 0Dh, 0Ah, " Error: Drive doesn't support LBA.", 0
+	.string31: db "", 0Dh, 0Ah, " Bytes per Sector: ", 0
+	.string32: db " ", 0
+	.string33: db " (", 0
+	.string34: db " MiB)", 0
+	.string35: db "", 0Dh, 0Ah, "AX: 0x", 0
+	.string36: db " BX: 0x", 0
+	.string37: db " CX: 0x", 0
+	.string38: db " DX: 0x", 0
+	.string39: db "", 0Dh, 0Ah, "SP: 0x", 0
+	.string40: db " BP: 0x", 0
+	.string41: db " SI: 0x", 0
+	.string42: db " DI: 0x", 0
+	.string43: db "", 0Dh, 0Ah, "CS: 0x", 0
+	.string44: db " DS: 0x", 0
+	.string45: db " ES: 0x", 0
+	.string46: db " SS: 0x", 0
+	.string47: db "", 0Dh, 0Ah, "Division overflow or division by zero.", 0Dh, "", 0
+	.string48: db "", 0Dh, 0Ah, "Error occurred at: ", 0
+	.string49: db "h:", 0
+	.string50: db "h", 0Dh, 0Ah, "AX: 0x", 0
+	.string51: db " BX: 0x", 0
+	.string52: db " CX: 0x", 0
+	.string53: db " DX: 0x", 0
+	.string54: db "", 0Dh, 0Ah, "SP: 0x", 0
+	.string55: db " BP: 0x", 0
+	.string56: db " SI: 0x", 0
+	.string57: db " DI: 0x", 0
+	.string58: db "", 0Dh, 0Ah, "System halted.", 0
+	.string59: db "Empty", 0
+	.string60: db "Unknown", 0
+	.string61: db "FAT16B", 0
+	.string62: db "FAT32", 0
+	.string63: db "Linux", 0
+	.string64: db "Extended Partition", 0
 
 times 8*512-($-$$) db 0x90 ; Fill rest of stage 1.5 with no-ops. (For alignment.)
 
