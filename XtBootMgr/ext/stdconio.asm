@@ -57,7 +57,7 @@ printStr:
 		mov ah, 0Eh ; Print character
 		xor bh, bh  ; Page 0
 		int 10h
-		jmp .char
+	jmp .char
 		
 	.end:
 	pop bx
@@ -159,14 +159,12 @@ printDecNumber:
 	push si
 	push di
 	
-	push ss
-	pop es
-
+	mov di, ss
+	mov es, di
+	mov ds, di
+	
 	lea di, [bp - 6]
 	call decNumToStr
-	
-	push ss
-	pop ds
 	
 	mov si, di
 	call printStr
@@ -187,9 +185,7 @@ decNumToStr:
 	mov cx, 10
 	call .printNumber
 	
-	; Add null terminator
-	xor al, al
-	stosb
+	mov byte [es:di], 0
 	
 	pop di
 	pop dx
