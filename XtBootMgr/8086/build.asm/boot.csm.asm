@@ -2,8 +2,8 @@
 [CPU 8086]
 [ORG 0x3C00]
 
-; Author:   AndrÃ© Morales 
-; Version:  2.1
+; Author:   André Morales 
+; Version:  2.1.1
 ; Creation: 06/10/2020
 ; Modified: 28/10/2020
 
@@ -52,12 +52,6 @@ Relocate:
 	; Copies everything except the boot signature.
 	mov cl, 255 
  rep movsw
-	
-	;;; mov ax, 0xABCD
-	;;; mov di, 0x500
-	;;; mov cl, 128
-	;;; rep stosw
-	
 	push cs         ; Save it to print it later
 	
 	mov ds, cx      ; Set DS back to 0.	
@@ -102,8 +96,8 @@ Start:
 	rep stosb
 	
 	; Reset drive system
-	xor ax, ax
-	int 13h 
+	xor ax, ax 
+ int 13h 
 	
 	; Read sector to first area
 	mov ax, 02_01h ; Read drive, read a single sector
@@ -161,7 +155,8 @@ Start:
 SignatureWrong:
 	Print(Constants.string7)
 	PrintNumber(ax)
-	jmp $ ; Halt
+	cli 
+ hlt
 
 putch: 
 	push bx

@@ -1,0 +1,9 @@
+drive: db 0
+	.CHS_bytesPerSector:    dw 0
+	.CHS_sectorsPerTrack:   db 0
+	.CHS_headsPerCylinder:  dw 0
+	.CHS_sectorsTimesHeads: dw 0
+	.CHS_cylinders:         dw 0	
+	.LBA_support:           db 0
+	.LBA_bytesPerSector:    dw 0
+	.logicalBytesPerSector: dw 0

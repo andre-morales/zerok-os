@@ -1,73 +1,89 @@
 package com.andre.casm;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * @author André Morales
- * @version 0.1.3
- * # Last edit: 27/10/2020
+ * @version 0.2.1
+ *
+ * @Edit: 31/12/2020
+ * @Edit: 03/01/2021
  */
-
 public class CASM {
-	public static void main(String[] args) {
+
+	public CASM(String[] args) {
 		try {
 			String csm = args[0];
 			String asm = "build.asm/" + csm + ".asm";
 			String out = args[1];
 			new File("build.asm").mkdir();
 
-			FileReader fr = new FileReader(csm);
-			BufferedReader br = new BufferedReader(fr);
+			var csmPath = new File(csm).toPath();
+			var lineBuffer = new ArrayList<>(Files.readAllLines(csmPath));
 
-			FileWriter fw = new FileWriter(asm);
+			try (var fw = new FileWriter(asm)) {
+				var inlineStrings = new ArrayList<String>();
 
-			ArrayList<String> inlineStrings = new ArrayList<>();
+				for (int li = 0; li < lineBuffer.size(); li++) {
+					String line = lineBuffer.get(li);
+					String tline = line.trim();
 
-			String _line;
-			while ((_line = br.readLine()) != null) {
-				String line = _line;
-
-				if (line.equals("Constants:")) {
-					fw.write(line);
-					fw.write('\n');
-
-					for (int i = 0; i < inlineStrings.size();) {
-						String string = inlineStrings.get(i++);
-
-						fw.write("\t.string" + i + ": db " + string + "\n");
-					}
-				} else {
-					List<String> statements = splitStatements(line);
-
-					for (String stat : statements) {
-						int beginQuotes = stat.indexOf(".\"");
-						if (beginQuotes > 0) {
-							int endQuotes = stat.indexOf("\"", beginQuotes + 2);
-							inlineStrings.add(getConstantString(stat.substring(beginQuotes, endQuotes + 1)));
-
-							stat = stat.substring(0, beginQuotes) + "Constants.string" + inlineStrings.size() + stat.substring(endQuotes + 1);
-						}
-
-						fw.write(stat);
+					if (tline.startsWith("#include ")) {
+						fw.write("; -- " + line + "\n");
+						var fileName = remainingAfter(line, "#include").trim();
+						var filePath = new File(fileName).toPath();
+						var includedLines = Files.readAllLines(filePath);
+						lineBuffer.addAll(li + 1, includedLines);
+					} else if (tline.startsWith("Constants:")) {
+						fw.write(line);
 						fw.write('\n');
+
+						for (int i = 0; i < inlineStrings.size();) {
+							String string = inlineStrings.get(i++);
+
+							fw.write("\t.string" + i + ": db " + string + "\n");
+						}
+					} else {
+						List<String> statements = splitStatements(line);
+
+						for (String stat : statements) {
+							if (!stat.trim().startsWith(";")) {
+								int beginQuotes = stat.indexOf(".\"");
+								if (beginQuotes > 0) {
+									int endQuotes = stat.indexOf("\"", beginQuotes + 2);
+									if (endQuotes > 0) {
+										inlineStrings.add(getConstantString(stat.substring(beginQuotes, endQuotes + 1)));
+
+										stat = stat.substring(0, beginQuotes) + "Constants.string" + inlineStrings.size() + stat.substring(endQuotes + 1);
+									}
+								}
+							}
+
+							fw.write(stat);
+							fw.write('\n');
+						}
 					}
 				}
 			}
-
-			br.close();
-			fw.close();
 
 			exec("nasm", asm, "-o" + out);
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
+	}
+
+	public static void main(String[] args) {
+		if (args.length < 2) {
+			System.err.println("This command requires 2 arguments.");
+			return;
+		}
+		new CASM(args);
 	}
 
 	public static List<String> splitStatements(String str) {
@@ -81,13 +97,15 @@ public class CASM {
 			if (onComment) {
 				statementBuffer.append(c);
 			} else if (onQuotes) {
-				if (c == '\'')
+				if (c == '\'') {
 					onQuotes = false;
+				}
 
 				statementBuffer.append(c);
 			} else if (onDoubleQuotes) {
-				if (c == '"')
+				if (c == '"') {
 					onDoubleQuotes = false;
+				}
 
 				statementBuffer.append(c);
 			} else {
@@ -127,12 +145,21 @@ public class CASM {
 		return statements;
 	}
 
+	public static String remainingAfter(String str, String search) {
+		int i = str.indexOf(search);
+		if (i == -1) {
+			return str;
+		}
+
+		return str.substring(i + search.length());
+	}
+
 	public static String getConstantString(String str) {
 		String str1 = str.substring(1, str.length());
 		String str2 = str1
-				.replace("\\r", "\", 0Dh, \"")
-				.replace("\\n", "\", 0Ah, \"")
-				.replace("\\N", "\", 0Dh, 0Ah, \"");
+			.replace("\\r", "\", 0Dh, \"")
+			.replace("\\n", "\", 0Ah, \"")
+			.replace("\\N", "\", 0Dh, 0Ah, \"");
 		return str2 + ", 0";
 	}
 

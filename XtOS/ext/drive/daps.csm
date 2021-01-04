@@ -1,0 +1,7 @@
+lbaDAPS:	 db 16       ; Size
+			 db 0x00     ; Always 0
+			 dw 0x0001   ; Sectors to read
+	.buffer: dw 0x2000   ; Destination buffer
+			 dw 0x0000   ; Destination segment
+	.lba:	 dd 0x000000 ; Lower LBA
+			 dd 0x000000 ; Upper LBA

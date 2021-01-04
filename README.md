@@ -1,2 +1,2 @@
-# XtOS
+# XtX
 XtOS, XtBootMgr, and its associated homebrew programming language: CASM.

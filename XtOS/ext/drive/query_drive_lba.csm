@@ -1,0 +1,30 @@
+getDriveLBAProperties: {
+	mov dl, [drive]
+	
+	mov bx, 0x55AA
+	mov ah, 41h | int 13h ; LBA available?
+	
+	jc .NoDriveLBA
+	
+	cmp bx, 0xAA55 | jne .NoBiosLBA
+	
+	push ds                ; Save DS
+	mov ax, 0 | mov ds, ax ; Set DS to 0
+	mov si, 0x2000         ; Load table to [0x0000:2000h]
+	mov ah, 48h | int 13h  ; Query extended drive parameters.
+		
+	mov ax, [0x2000 + 0x18]                  ; Get bytes/sector
+	pop ds                                   ; Get DS back
+	mov byte [drive.LBA_support], 0          ; LBA is supported
+	mov word [drive.LBA_bytesPerSector], ax  ; Save bytes/sector
+	jmp .End
+	
+	.NoDriveLBA:
+	mov byte [drive.LBA_support], 1
+	jmp .End
+	
+	.NoBiosLBA:
+	mov byte [drive.LBA_support], 2
+	
+	.End:
+ret }
