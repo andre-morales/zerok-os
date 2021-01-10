@@ -1,12 +1,39 @@
 ; Author:   André Morales 
-; Version:  1.1
+; Version:  1.23
 ; Creation: 06/10/2020
-; Modified: 24/10/2020
+; Modified:
+; @ 05/01/2021
 
 %define NL 0Ah
 %define CR 0Dh
 %define NLCR CR, NL
 
+%macro Print 1-*
+	%rep %0
+		%ifid %1
+			%if %1 == ax
+				call printDecNumber
+			%elif %1 == bx
+				PrintDecNum %1
+			%elif %1 == al
+				xor ah, ah
+				call printDecNumber
+			%endif
+		%else
+			mov si, %1
+			call printStr
+		%endif
+		%rotate 1
+	%endrep
+%endmacro
+%macro PrintDecNum 1
+	mov ax, %1
+	call printDecNumber
+%endmacro
+%macro PrintHexNum 1
+	mov ax, %1
+	call printHexNumber
+%endmacro
 %macro Putch 1
 	mov al, %1
 	call putch
@@ -19,33 +46,18 @@
 %macro Pause 1
 	call pause
 %endmacro
-
-%macro Getch 1
-	call getch
-%endmacro
-
-%macro Print 1
-	mov si, %1
-	call printStr
-%endmacro
+%define Getch() call getch
 %macro PrintColor 2
 	mov si, %1
 	mov al, %2
 	call printColorStr
 %endmacro
-%macro PrintDecNum 1
-	mov ax, %1
-	call printDecNumber
-%endmacro
 %macro DecNumToStr 1 
 	mov ax, %1
 	call decNumToStr
 %endmacro
-%macro PrintHexNum 1
-	mov ax, %1
-	call printHexNumber
-%endmacro
 %macro ClearScreen 1
+	mov ax, %1
 	call clearScreen
 %endmacro
 %macro D_PrintHexNum 1
@@ -59,4 +71,10 @@
 	mov si, %1
 	call printStr
 	pop si
+%endmacro
+%macro D_Putch 1
+	push ax
+	mov al, %1
+	call putch
+	pop ax
 %endmacro

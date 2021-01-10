@@ -3,11 +3,12 @@
 [ORG 0x3C00]
 
 ; Author:   André Morales 
-; Version:  2.1.1
+; Version:  1.0
 ; Creation: 06/10/2020
 ; Modified: 28/10/2020
 
-%include "ext/stdconio_h.asm"
+#include ext/stdconio_h.csm
+
 %macro PrintNumber 1
 	push %1
 	call PrintNumber16
@@ -58,7 +59,7 @@ Relocate:
 ; -- Here it's safe to refer to our own data (strings, functions...) --
 Start:	
 	; Print welcome message followed by boot info
-	Print(." -- XtBootMgr --\NBooted at ")	
+	Print(." @XtBootMgr v1.0.0\NBooted at ")	
 	
 	; Print boot CS:IP
 	call PrintNumber16
@@ -71,7 +72,7 @@ Start:
 	PrintNumber(dx)
 	
 	; Discover drive sector size and print it
-	Print(.". \NSector size is... ")
+	Print(.". \NSector size is: ")
 	
 	; -- Figure out how many bytes per sector by brute forcing such discovery. --
 	; Basically fills two separate areas in RAM with different contents,

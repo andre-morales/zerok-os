@@ -2,9 +2,11 @@
 [CPU 8086]
 
 ; Author:   André Morales 
-; Version:  0.42.1
+; Version:  1.0
 ; Creation: 07/10/2020
-; Modified: 31/10/2020
+; Modified:
+; @ 31/10/2020
+; @ 05/01/2021
 
 %define STACK_ADDRESS 0xA00
 %define PARTITION_ARRAY 0x1B00
@@ -14,8 +16,79 @@
 ; -- [0x1A00 - 0x1B00] Unitialiazed varible storage
 ; -- [0x1B00 - 0x1C00] Partition array
 ; -- [0x2000] Generic stuff buffer
+; -- #include ext/stdconio_h.csm
+; Author:   André Morales 
+; Version:  1.23
+; Creation: 06/10/2020
+; Modified:
+; @ 05/01/2021
+
+%define NL 0Ah
+%define CR 0Dh
+%define NLCR CR, NL
+
+%macro Print 1-*
+	%rep %0
+		%ifid %1
+			%if %1 == ax
+				call printDecNumber
+			%elif %1 == bx
+				PrintDecNum %1
+			%endif
+		%else
+			mov si, %1
+			call printStr
+		%endif
+		%rotate 1
+	%endrep
+%endmacro
+%macro PrintDecNum 1
+	mov ax, %1
+	call printDecNumber
+%endmacro
+%macro PrintHexNum 1
+	mov ax, %1
+	call printHexNumber
+%endmacro
+%macro Putch 1
+	mov al, %1
+	call putch
+%endmacro
+%macro Putnch 2
+	mov al, %1
+	mov cl, %2
+	call putnch
+%endmacro
+%macro Pause 1
+	call pause
+%endmacro
+%define Getch() call getch
+%macro PrintColor 2
+	mov si, %1
+	mov al, %2
+	call printColorStr
+%endmacro
+%macro DecNumToStr 1 
+	mov ax, %1
+	call decNumToStr
+%endmacro
+%macro ClearScreen 1
+	mov ax, %1
+	call clearScreen
+%endmacro
+%macro D_PrintHexNum 1
+	push ax
+	mov ax, %1
+	call printHexNumber
+	pop ax
+%endmacro
+%macro D_Print 1
+	push si
+	mov si, %1
+	call printStr
+	pop si
+%endmacro
 %include "ext/enter_leave_h.asm"
-%include "ext/stdconio_h.asm"
 
 db 'Xt' ; Signature
 
@@ -62,7 +135,7 @@ MenuStart:
 	mov word [cursor], 0
 	
 	MainMenu:
-		call clearScreen
+		ClearScreen(0b0_110_1111)
 		mov bx, 00_00h
 		mov ax, 25_17h
 		call drawSquare
@@ -156,13 +229,14 @@ MenuStart:
  jne BackToMainMenu.clear
 			
 			.chain:
+			ClearScreen(0b0_000_0111)
+			
 			mov dl, [drive]
 			jmp 0x0000:0x7C00	
 		
 		BackToMainMenu:
 			Pause()
 			.clear:
-			call clearScreen
 		jmp MainMenu
 
 ; void (int32 LBA)
@@ -468,8 +542,8 @@ getDriveGeometry:
 	Print(Constants.string26)
 	PrintDecNum [drive.CHS_bytesPerSector]
 	
-	xor ah, ah
 	Print(Constants.string27)
+	xor ah, ah
 	mov al, [drive.CHS_sectorsPerTrack]
 	call printDecNumber
 
@@ -726,9 +800,9 @@ clearRect:
  push dx
 	
 	mov ax, 0600h    ; AH = Scroll up, AL = Clear
-	mov bh, [bp + 4] ; Foreground / Background
-	mov cx, [bp + 8] ; Origin
-	mov dx, [bp + 6] ; Destination
+	mov bh, [bp + 8] ; Foreground / Background
+	mov cx, [bp + 6] ; Origin
+	mov dx, [bp + 4] ; Destination
 	int 10h
 		
 	pop dx 
@@ -741,16 +815,270 @@ clearRect:
 jmp ax 
 
 clearScreen: 
+	push ax
 	xor ax, ax           
  push ax
 	mov ax, 18_27h       
  push ax
-	mov ax, 0b0_110_1111 
- push ax
 	call clearRect
+	
+	xor dx, dx
+	call setCursor
 ret 
 		
-%include 'ext/stdconio.asm'
+; -- #include ext/stdconio.csm
+; Author:   André Morales 
+; Version:  1.9
+; Creation: 05/10/2020
+; Modified: 25/10/2020
+
+putch: 
+	push ax
+	push bx
+	
+	cmp al, NL ; Is character newline?
+	jne .print
+	
+	mov al, CR ; Print a carriage return
+	call putch
+	mov al, NL ; Then print an actual new line
+	
+	.print:
+	mov ah, 0Eh
+	xor bh, bh
+	mov bl, 1Ah
+	int 10h
+	
+	pop bx
+	pop ax
+ret
+
+getch:
+	xor ah, ah
+	int 16h
+ret
+
+pause:
+	push ax
+	call getch
+	pop ax
+ret	
+
+putnch: 	
+	push cx
+	
+	.print:
+		call putch
+	loop .print
+	
+	pop cx
+ret
+
+printStr:
+	push ax
+	push bx	
+	
+	.char:
+		lodsb
+		test al, al
+		jz .end
+		
+		mov ah, 0Eh ; Print character
+		xor bh, bh  ; Page 0
+		int 10h
+	jmp .char
+		
+	.end:
+	pop bx
+	pop ax
+ret
+	
+printColorStr:
+	push ax
+	push bx
+	push cx
+	push dx
+	
+	; Save color
+	xor bh, bh
+	mov bl, al
+	push bx
+	
+	; Get cursor position
+	mov ah, 03h
+	xor bh, bh
+	int 10h
+
+	pop bx ; Get color back
+	
+	.char:
+		lodsb
+		test al, al
+		jz .end
+		
+		cmp al, NL
+		je .putraw
+		cmp al, CR
+		je .putraw
+		
+		; Print only at cursor position with color
+		mov ah, 09h
+		mov cx, 1
+		int 10h
+		
+		; Set cursor position
+		inc dl ; Increase X
+		mov ah, 02h
+		int 10h
+	jmp .char
+	
+	.putraw:
+		; Teletype output
+		mov ah, 0Eh
+		int 10h
+		
+		; Get cursor position
+		mov ah, 03h
+		int 10h
+	jmp .char
+	
+	.end:
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret	
+	
+getCursor:
+	push ax
+	push bx
+	push cx
+	
+	mov ah, 03h
+	xor bh, bh
+	int 10h
+	
+	pop cx
+	pop bx
+	pop ax
+ret
+
+setCursor:
+	push ax
+	push bx
+	push cx
+	push dx 
+	
+	mov ah, 02h ; Set cursor position
+	xor bh, bh
+	int 10h
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret
+
+printDecNumber:
+	push bp
+	mov bp, sp
+	sub sp, 6
+	push ds
+	push es
+	push si
+	push di
+	
+	mov di, ss
+	mov es, di
+	mov ds, di
+	
+	lea di, [bp - 6]
+	call decNumToStr
+	
+	mov si, di
+	call printStr
+	
+	pop di
+	pop si
+	pop es
+	pop ds
+	mov sp, bp
+	pop bp
+ret
+	
+decNumToStr:
+	push cx
+	push dx
+	push di
+	
+	mov cx, 10
+	call .printNumber
+	
+	mov byte [es:di], 0
+	
+	pop di
+	pop dx
+	pop cx
+ret
+	
+	.printNumber:
+		push ax
+		push dx
+		
+		xor dx, dx
+		div cx            ; AX = Quotient, DX = Remainder
+		test ax, ax       ; Is quotient zero?
+		
+		jz .printDigit    ; Yes, just print the digit in the remainder.
+		call .printNumber ; No, recurse and divide the quotient by 16 again. Then print the digit in the remainder.
+		
+		.printDigit:
+		mov al, dl
+		add al, '0'
+		stosb
+	
+		pop dx
+		pop ax
+    ret	
+	
+printHexNumber:
+	push ax
+	push cx
+	push dx
+	
+	mov cx, 16
+	call .printNumber
+	
+	pop dx
+	pop cx
+	pop ax
+ret
+	
+	.printNumber:
+		push ax
+		push dx
+		
+		xor dx, dx
+		div cx            ; AX = Quotient, DX = Remainder
+		test ax, ax       ; Is quotient zero?
+		
+		jz .printDigit    ; Yes, just print the digit in the remainder.
+		call .printNumber ; No, recurse and divide the quotient by 16 again. Then print the digit in the remainder.
+		
+		.printDigit:
+		mov al, dl
+		add al, '0'
+		cmp al, '9'
+		jle .putc
+		
+		add al, 7
+		
+		.putc:
+		call putch
+	
+		pop dx
+		pop ax
+    ret
 %include 'ext/pushall_popall.asm'
 
 DivisionErrorHandler: 
@@ -857,11 +1185,11 @@ PartitionTypeNamePtrArr:
 	
 Constants:
 	.string1: db "", 0Dh, 0Ah, "", 0Ah, "--- Xt Generic Boot Manager ---", 0
-	.string2: db "", 0Dh, 0Ah, "Version: 0.42.0", 0Dh, 0Ah, "", 0
+	.string2: db "", 0Dh, 0Ah, "Version: 1.0.0", 0Dh, 0Ah, "", 0
 	.string3: db "", 0Dh, 0Ah, "Press any key to read the partition map.", 0
 	.string4: db "", 0Dh, 0Ah, "Partition map read.", 0
 	.string5: db "", 0Dh, 0Ah, "Press any key to enter boot select...", 0Dh, 0Ah, "", 0
-	.string6: db "-XtBootMgr v0.42.0 [Drive 0x", 0
+	.string6: db "-XtBootMgr v1.0.0 [Drive 0x", 0
 	.string7: db "]-", 0
 	.string8: db "", 0Dh, 0Ah, "", 0Dh, 0Ah, " You can't boot an extended partition.", 0
 	.string9: db "", 0Dh, 0Ah, "", 0Dh, 0Ah, "Reading drive...", 0

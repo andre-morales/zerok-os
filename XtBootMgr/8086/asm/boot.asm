@@ -3,11 +3,83 @@
 [ORG 0x3C00]
 
 ; Author:   André Morales 
-; Version:  2.1.1
+; Version:  1.0
 ; Creation: 06/10/2020
 ; Modified: 28/10/2020
 
-%include "ext/stdconio_h.asm"
+; -- #include ext/stdconio_h.csm
+; Author:   André Morales 
+; Version:  1.23
+; Creation: 06/10/2020
+; Modified:
+; @ 05/01/2021
+
+%define NL 0Ah
+%define CR 0Dh
+%define NLCR CR, NL
+
+%macro Print 1-*
+	%rep %0
+		%ifid %1
+			%if %1 == ax
+				call printDecNumber
+			%elif %1 == bx
+				PrintDecNum %1
+			%endif
+		%else
+			mov si, %1
+			call printStr
+		%endif
+		%rotate 1
+	%endrep
+%endmacro
+%macro PrintDecNum 1
+	mov ax, %1
+	call printDecNumber
+%endmacro
+%macro PrintHexNum 1
+	mov ax, %1
+	call printHexNumber
+%endmacro
+%macro Putch 1
+	mov al, %1
+	call putch
+%endmacro
+%macro Putnch 2
+	mov al, %1
+	mov cl, %2
+	call putnch
+%endmacro
+%macro Pause 1
+	call pause
+%endmacro
+%define Getch() call getch
+%macro PrintColor 2
+	mov si, %1
+	mov al, %2
+	call printColorStr
+%endmacro
+%macro DecNumToStr 1 
+	mov ax, %1
+	call decNumToStr
+%endmacro
+%macro ClearScreen 1
+	mov ax, %1
+	call clearScreen
+%endmacro
+%macro D_PrintHexNum 1
+	push ax
+	mov ax, %1
+	call printHexNumber
+	pop ax
+%endmacro
+%macro D_Print 1
+	push si
+	mov si, %1
+	call printStr
+	pop si
+%endmacro
+
 %macro PrintNumber 1
 	push %1
 	call PrintNumber16
@@ -227,9 +299,9 @@ ret
     ret
 
 Constants:
-	.string1: db " -- XtBootMgr --", 0Dh, 0Ah, "Booted at ", 0
+	.string1: db " @XtBootMgr v1.0.0", 0Dh, 0Ah, "Booted at ", 0
 	.string2: db " from drive ", 0
-	.string3: db ". ", 0Dh, 0Ah, "Sector size is... ", 0
+	.string3: db ". ", 0Dh, 0Ah, "Sector size is: ", 0
 	.string4: db " bytes.", 0Dh, 0Ah, "Loading ", 0
 	.string5: db " sectors...", 0
 	.string6: db " Loaded, OK!", 0

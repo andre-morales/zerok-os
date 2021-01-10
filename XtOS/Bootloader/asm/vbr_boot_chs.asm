@@ -3,7 +3,7 @@
 [ORG 0x7C00]
 
 ; Author:   André Morales 
-; Version:  0.2.1
+; Version:  0.3.0
 ; Creation: 07/10/2020
 ; Modified:
 ; @ 31/10/2020
@@ -11,71 +11,86 @@
 
 ; -- #include ext/stdconio_h.csm
 ; Author:   André Morales 
-; Version:  1.1
+; Version:  1.23
 ; Creation: 06/10/2020
-; Modified: 24/10/2020
+; Modified:
+; @ 05/01/2021
 
 %define NL 0Ah
 %define CR 0Dh
 %define NLCR CR, NL
 
-%macro Print 1
-	mov si, %1
-	call printStr
+%macro Print 1-*
+	%rep %0
+		%ifid %1
+			%if %1 == ax
+				call printDecNumber
+			%elif %1 == bx
+				PrintDecNum %1
+			%elif %1 == al
+				xor ah, ah
+				call printDecNumber
+			%endif
+		%else
+			mov si, %1
+			call printStr
+		%endif
+		%rotate 1
+	%endrep
 %endmacro
-
-%macro Putch 1
-	mov al, %1
-	call putch
+%macro PrintDecNum 1
+	mov ax, %1
+	call printDecNumber
 %endmacro
-;%macro Putnch 2
-;	mov al, %1
-;	mov cl, %2
-;	call putnch
-;%endmacro
-;%macro Pause 1
-;	call pause
-;%endmacro
-;
-;%macro Getch 1
-;	call getch
-;%endmacro
-
-
-
-;%macro PrintColor 2
-;	mov si, %1
-;	mov al, %2
-;	call printColorStr
-;%endmacro
-;%macro PrintDecNum 1
-;	mov ax, %1
-;	call printDecNumber
-;%endmacro
-;%macro DecNumToStr 1 
-;	mov ax, %1
-;	call decNumToStr
-;%endmacro
 %macro PrintHexNum 1
 	mov ax, %1
 	call printHexNumber
 %endmacro
-;%macro ClearScreen 1
-;	call clearScreen
-;%endmacro
-;%macro D_PrintHexNum 1
-;	push ax
-;	mov ax, %1
-;	call printHexNumber
-;	pop ax
-;%endmacro
-;%macro D_Print 1
-;	push si
-;	mov si, %1
-;	call printStr
-;	pop si
-;%endmacro
-; -- [0x0A00 - 0x0FFF] Stage 1.5
+%macro Putch 1
+	mov al, %1
+	call putch
+%endmacro
+%macro Putnch 2
+	mov al, %1
+	mov cl, %2
+	call putnch
+%endmacro
+%macro Pause 1
+	call pause
+%endmacro
+%define Getch() call getch
+%macro PrintColor 2
+	mov si, %1
+	mov al, %2
+	call printColorStr
+%endmacro
+%macro DecNumToStr 1 
+	mov ax, %1
+	call decNumToStr
+%endmacro
+%macro ClearScreen 1
+	mov ax, %1
+	call clearScreen
+%endmacro
+%macro D_PrintHexNum 1
+	push ax
+	mov ax, %1
+	call printHexNumber
+	pop ax
+%endmacro
+%macro D_Print 1
+	push si
+	mov si, %1
+	call printStr
+	pop si
+%endmacro
+%macro D_Putch 1
+	push ax
+	mov al, %1
+	call putch
+	pop ax
+%endmacro
+; -- [0x0A00 -    ?  ] Stage 1.5
 ; -- [0x7600 - 0x77FF] MBR.
 ; -- [0x7800 - 0x79FF] Test VBR/EBR.
 ; -- [0x7A00 - 0x7BFF] Test VBR from EBR.
@@ -225,11 +240,11 @@ ScanExtendedPartition:
 ret 
 
 LoadStage2:
-	push dx 
- push bx
+	push bx 
+ push dx
+	xor bp, bp
 	
 	mov word [lbaDAPS.buffer], 0x0A00
-	mov cx, 2
 	.loadSector:
 		add dx, 1
 		adc bx, 0
@@ -241,10 +256,25 @@ LoadStage2:
 		pop bx
 		
 		add word [lbaDAPS.buffer], 0x0200
+		
+		test bp, bp 
+ jz .getSignature_SectCount
 	loop .loadSector
-
+	jmp .jump	
+	
+		.getSignature_SectCount:
+		cmp word [0x0A00], 'Xt' 
+ jne SignatureError
+		mov cx, [0x0A02]
+		inc bp
+	loop .loadSector
+		
+	.jump:
 	mov dl, [drive]
-	jmp 0xA0:0000h
+	jmp 0x0A04
+
+SignatureError:
+	
 
 Halt:
 	mov ah, 0Eh
