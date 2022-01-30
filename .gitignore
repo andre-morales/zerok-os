@@ -1,4 +1,8 @@
-/CASM 1/nbproject/private/
-/CASM 1/build/
-/Disks/
-/Reference Data/*.pdf
+/Test Machine/
+/Tools/CASM 1/nbproject/private/
+/Tools/CASM 1/build/
+/Tools/GCC/
+/Tools/RunCygwin/
+
+/XtBootMgr/8086/asm/
+/XtOS/Bootloader/build/
