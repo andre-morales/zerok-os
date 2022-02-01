@@ -8,6 +8,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -17,12 +18,13 @@ import java.util.Map;
  */
 public final class CASM {
 
-	public static final String VERSION = "0.9.0";
+	public static final String VERSION = "0.9.1";
 
-	static ArrayList<String> inputs = new ArrayList<>();
-	static ArrayList<String> offsets = new ArrayList<>();
+	static List<String> inputs = new ArrayList<>();
+	static List<String> offsets = new ArrayList<>();
 	static Map<String, String> defines = new HashMap<>();
-
+	static List<String> includeFolders = new ArrayList<>();
+	
 	public static void main(String[] args) {
 		System.out.println("CASM Version " + VERSION);
 
@@ -35,6 +37,9 @@ public final class CASM {
 					/* Input file */
 					case "i":
 						inputs.add(token);
+						break;
+					case "If":
+						includeFolders.add(token);
 						break;
 					/* Specify offset for something */
 					case "off":
@@ -101,6 +106,9 @@ public final class CASM {
 			switch (token) {
 				case "-i":
 					ctrl = "i";
+					break;
+				case "-If":
+					ctrl = "If";
 					break;
 				case "-tt":
 					ctrl = "tt";
@@ -201,6 +209,7 @@ public final class CASM {
 		System.out.println("Transpiling '" + input + "' to '" + output + "'");
 		var tr = new Transpiler();
 		tr.defines = defines;
+		tr.includeFolders = includeFolders;
 		tr.transpile(new File(input), new File(output));
 	}
 

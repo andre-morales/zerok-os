@@ -18,24 +18,11 @@ import java.util.function.Function;
  * @author Andre
  */
 public class Transpiler {
-	static final Map<String, Integer> VARIABLES_TYPES_SIZES = new HashMap<>();
+	static final Map<String, Integer> VARIABLES_SIZES = VariableTypes16.get();
 	
-	static {
-		VARIABLES_TYPES_SIZES.put("void", 0);
-		VARIABLES_TYPES_SIZES.put("byte", 1);
-		VARIABLES_TYPES_SIZES.put("bool", 1);
-		VARIABLES_TYPES_SIZES.put("char", 1);
-		VARIABLES_TYPES_SIZES.put("short", 2);
-		VARIABLES_TYPES_SIZES.put("word", 2);
-		VARIABLES_TYPES_SIZES.put("int", 4);
-		VARIABLES_TYPES_SIZES.put("long", 8);
-
-		VARIABLES_TYPES_SIZES.put("byte*", 2);
-		VARIABLES_TYPES_SIZES.put("char*", 2);
-	}
-	
+	Path inputPath;
 	public Map<String, String> defines;     // Command line defines.
-	
+	public List<String> includeFolders;     // Paths that might contain files included in the source.
 	Map<String, String> definedPairs;       // #define statements plus command line defines.
 	List<String> constants;                 // Constants defined with ."" (read-only data)
 	List<Pair<String, Integer>> globalVars; // Global variables (data)	
@@ -64,7 +51,7 @@ public class Transpiler {
 		
 		Writer out;
 
-		var inputPath = inputFile.toPath();
+		inputPath = inputFile.toPath();
 		try {
 			out = new FileWriter(outputFile);
 			var lineBuffer = Files.readAllLines(inputPath);
@@ -90,20 +77,20 @@ public class Transpiler {
 				if (tline.startsWith("#include ")) {
 					out.write("; -- " + line + "--\n");
 					var str = Str.remainingAfter(line, "#include").trim();
-					Path filePath;
-					if(str.startsWith("<") && str.endsWith(">")){
-						filePath = new File(str.substring(1, str.indexOf(">"))).toPath();
-					} else {
-						filePath = inputPath.resolveSibling(str);
-					}
-					lineBuffer.addAll(li + 1, Files.readAllLines(filePath));
+					
+					var result = solveInclude(str);
+					lineBuffer.addAll(li + 1, result);
 				} else if (tline.startsWith("#define ")) {
 					var def = Str.remainingAfter(line, "#define ").split(" ", 2);
 					definedPairs.put(def[0], def[1]);
-				} else if (tline.startsWith("#if ")) {
-					var def = Str.remainingAfter(line, "#if ");
+				} else if (tline.startsWith("#ifdef ")) {
+					var def = Str.remainingAfter(line, "#ifdef ");
 					ifBlock = true;
 					ifBlockTrue = "1".equals(definedPairs.get(def));
+				} else if (tline.startsWith("#ifndef ")) {
+					var def = Str.remainingAfter(line, "#ifndef ");
+					ifBlock = true;
+					ifBlockTrue = !("1".equals(definedPairs.get(def)));
 				} else if (tline.startsWith("@rodata:")) {
 					foundRODataSection = true;
 					out.write(line);
@@ -162,6 +149,28 @@ public class Transpiler {
 		if(!foundRODataSection && constants.size() > 0) System.out.println("Warning: Constant strings were defined but no @rodata section defined.");
 	}
 
+	List<String> solveInclude(String str){
+		Path filePath = null;
+		if(str.startsWith("<") && str.endsWith(">")){
+			var path = Str.untilFirstMatch(str, 1, ">");
+			for(String include : includeFolders){
+				var res = new File(include, path);
+				if(res.exists()){
+					filePath = res.toPath();
+					break;
+				}
+			}
+		} else {
+			filePath = inputPath.resolveSibling(str);
+		}
+
+		try {
+			return Files.readAllLines(filePath);
+		} catch(IOException | NullPointerException ex ){
+			throw new CASMException("Include file '" + str + "' not found.");
+		}
+	}
+	
 	/**
 	 * Processes a line of code and turns it into multiple ordered statements. 
 	 * This function also handle folding brackets. */
@@ -264,7 +273,7 @@ public class Transpiler {
 				i += quotedStr.length() + 1;
 				continue;
 			} else if(c == '$'){
-				var varname = Str.untilFirstMatch(stat, i + 1, " ", ",");
+				var varname = Str.untilFirstMatch(stat, i + 1, " ", ",", "]").trim();
 				if(varname.equals("stacksize")){
 					statementBuffer.append(currentStackSize);
 					i += varname.length();
@@ -272,7 +281,7 @@ public class Transpiler {
 				} else {
 					var stackOff = stackVars.get(varname);
 					if(stackOff != null){
-						var stackStr = "[bp - " + stackOff + "]";
+						var stackStr = "bp - " + stackOff;
 						statementBuffer.append(stackStr);
 						i += varname.length();
 						continue;
@@ -324,9 +333,9 @@ public class Transpiler {
 		if(iq > 0){		
 			var arrayType = type.substring(0, iq);
 			var arraySize = type.substring(iq + 1, type.indexOf("]"));
-			pair.value = VARIABLES_TYPES_SIZES.get(arrayType) * Integer.parseInt(arraySize);
+			pair.value = VARIABLES_SIZES.get(arrayType) * Integer.parseInt(arraySize);
 		} else {
-			pair.value = VARIABLES_TYPES_SIZES.get(type);
+			pair.value = VARIABLES_SIZES.get(type);
 		}
 		if(pair.value == null) throw new CASMException("Unknown variable type " + type);
 		return pair;	
