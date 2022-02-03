@@ -46,8 +46,6 @@
 	%macro PrintHexNum 1
 		push %1
 		call printHexNum
-		inc sp
-		inc sp
 	%endmacro
 #endif
 

@@ -13,12 +13,12 @@ import java.util.Map;
 
 /**
  * @author André Morales
- * @version 0.9.0
+ * @version 0.9.2
  * @Edit: 27/01/2022
  */
 public final class CASM {
 
-	public static final String VERSION = "0.9.1";
+	public static final String VERSION = "0.9.2";
 
 	static List<String> inputs = new ArrayList<>();
 	static List<String> offsets = new ArrayList<>();

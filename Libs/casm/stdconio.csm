@@ -35,8 +35,7 @@ putch: {
 	
 	.print:
 	mov ah, 0Eh
-	xor bh, bh
-	mov bl, 1Ah
+	mov bx, 00_1Ah ; BH (0) BL (1Ah)
 	int 10h
 	
 	pop bx | pop ax
@@ -65,22 +64,20 @@ ret }
 printHexNum: {
 	push bp
 	mov bp, sp
-	mov ax, [bp + 4]
-	
+
 	push ax
 	push cx
-	push dx
-	
+
+	mov ax, [bp + 4]
 	mov cx, 16
 	call .printNumber
 	
-	pop dx
 	pop cx
 	pop ax
 	
 	mov sp, bp
 	pop bp
-ret
+ret 2
 	
 	.printNumber:
 		push ax
@@ -176,21 +173,14 @@ ret
 
 #else
 printHexNum: {
-	push bp
-	mov bp, sp
 	push ax
 	push cx
-	push dx
-	
+
 	mov cx, 16
 	call .printNumber
 	
-	pop dx
 	pop cx
 	pop ax
-	
-	mov sp, bp
-	pop bp
 ret
 	
 	.printNumber:

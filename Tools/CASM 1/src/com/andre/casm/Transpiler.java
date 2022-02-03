@@ -26,8 +26,10 @@ public class Transpiler {
 	Map<String, String> definedPairs;       // #define statements plus command line defines.
 	List<String> constants;                 // Constants defined with ."" (read-only data)
 	List<Pair<String, Integer>> globalVars; // Global variables (data)	
-	LinkedHashMap<String, Integer> stackVars;         // Stack variables
-	int currentStackSize = 0;
+	// Stack variables
+	LinkedHashMap<String, Integer> stackVars, stackArgs;         
+	int currentStackVarsSize = 0;
+	int currentStackArgsSize = 0;
 	int inputLineIndex;
 	
 	boolean onMultiLineComment = false;
@@ -38,6 +40,7 @@ public class Transpiler {
 		constants = new ArrayList<>();
 		globalVars = new ArrayList<>();
 		stackVars = new LinkedHashMap<>();
+		stackArgs = new LinkedHashMap<>();
 	}
 	
 	public void transpile(File inputFile, File outputFile){
@@ -122,11 +125,16 @@ public class Transpiler {
 					globalVars.add(pair);
 
 				} else if (tline.startsWith("lvar ")) {
-					var field = Str.remainingAfter(tline, "var ");
+					var field = Str.remainingAfter(tline, "lvar ");
 					reserveStackVar(field);
+				}  else if (tline.startsWith("farg ")) {
+					var field = Str.remainingAfter(tline, "farg ");
+					reserveStackArg(field);
 				} else if(tline.startsWith("_clstack()")){
 					stackVars.clear();
-					currentStackSize = 0;
+					stackArgs.clear();
+					currentStackVarsSize = 0;
+					currentStackArgsSize = 0;
 				} else {
 					var statements = splitStatements(line);
 
@@ -273,19 +281,33 @@ public class Transpiler {
 				i += quotedStr.length() + 1;
 				continue;
 			} else if(c == '$'){
-				var varname = Str.untilFirstMatch(stat, i + 1, " ", ",", "]").trim();
-				if(varname.equals("stacksize")){
-					statementBuffer.append(currentStackSize);
+				var varname = Str.untilFirstMatch(stat, i + 1, " ", ",", "]", "}").trim();
+				if(varname.equals("stack_vars_size")){
+					statementBuffer.append(currentStackVarsSize);
+					i += varname.length();
+					continue;
+				} else if(varname.equals("stack_args_size")){
+					statementBuffer.append(currentStackArgsSize);
 					i += varname.length();
 					continue;
 				} else {
-					var stackOff = stackVars.get(varname);
-					if(stackOff != null){
-						var stackStr = "bp - " + stackOff;
+					var stackVarOff = stackVars.get(varname);
+					if(stackVarOff != null){
+						var stackStr = "bp - " + stackVarOff;
 						statementBuffer.append(stackStr);
 						i += varname.length();
 						continue;
 					}
+					
+					var stackArgOff = stackArgs.get(varname);
+					if(stackArgOff != null){
+						var stackStr = "bp + " + stackArgOff;
+						statementBuffer.append(stackStr);
+						i += varname.length();
+						continue;
+					}
+					
+					
 				}
 			}
 			statementBuffer.append(c);
@@ -343,7 +365,13 @@ public class Transpiler {
 	
 	public void reserveStackVar(String stat){
 		var pair = getVariable(stat);
-		currentStackSize += pair.value;
-		stackVars.put(pair.key, currentStackSize);
+		currentStackVarsSize += pair.value;
+		stackVars.put(pair.key, currentStackVarsSize);
+	}
+	
+	public void reserveStackArg(String stat){
+		var pair = getVariable(stat);
+		stackArgs.put(pair.key, 4 + currentStackArgsSize);
+		currentStackArgsSize += pair.value;
 	}
 }
