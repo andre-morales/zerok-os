@@ -1,8 +1,8 @@
 /* Drive reading system
    Author:   André Morales 
-   Version:  1.06
+   Version:  1.07
    Creation: 02/01/2021
-   Modified: 31/01/2022 */
+   Modified: 05/02/2022 */
 
 var void Drive
 	var byte .id	
@@ -51,10 +51,9 @@ Drive.ReadSector: {
 	lvar byte addr_head
 	sub sp, $stack_vars_size
 	
-	push es | push di
-	push si
-	push cx | push dx
-	push ax
+	push es
+	push di | push si
+	push dx | push cx | push bx | push ax
 	
 	#ifdef DRIVE_DBG
 	Print(."\NSector 0x")
@@ -117,10 +116,9 @@ Drive.ReadSector: {
 	}
 	
 	.End:
-	pop ax
-	pop dx | pop cx
-	pop si
-	pop di | pop es
+	pop ax | pop bx | pop cx | pop dx
+	pop si | pop di
+	pop es
 	
 	mov sp, bp
 	pop bp
@@ -129,6 +127,8 @@ ret $stack_args_size }
 
 Drive.CHS.GetProperties: {
 	push es
+	
+	mov word [Drive.CHS.bytesPerSector], 512
 	
 	mov dl, [Drive.id]
 	mov ah, 08h | int 13h ; Query drive geometry

@@ -200,9 +200,11 @@ public final class CASM {
 			}
 			disk.close();
 			file.close();
+			System.out.println("Written " + len + " bytes.");
 		} catch (IOException ex) {
 			ex.printStackTrace();
 		}
+		
 	}
 
 	void transpile(String input, String output) {
