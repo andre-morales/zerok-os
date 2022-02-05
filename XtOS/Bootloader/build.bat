@@ -7,16 +7,16 @@ set VHD="..\..\Test Machines\vdisk.vhd"
 
 if "%1"=="boot_head" (
 	if "%2"=="lba" (
-		!CASM! -If ../../Libs/casm -+d LBA_AVAILABLE -i src/boot_head.csm -tti build/boot_head_lba.asm -ati build/bin/boot_head_lba.img -off 0x3E -off 0x10803E -len 450 -wt !VHD!
+		!CASM! -If ../../Libs/casm -+d LBA_AVAILABLE -i src/boot_head.asm -tti build/boot_head_lba.asm -ati build/bin/boot_head_lba.img -off 0x3E -off 0x10803E -len 450 -wt !VHD!
 	) else (
-		!CASM! -If ../../Libs/casm --d LBA_AVAILABLE -i src/boot_head.csm -tti build/boot_head_chs.asm -ati build/bin/boot_head_chs.img -off 0x3E -off 0x10803E -len 450 -wt !VHD!
+		!CASM! -If ../../Libs/casm --d LBA_AVAILABLE -i src/boot_head.asm -tti build/boot_head_chs.asm -ati build/bin/boot_head_chs.img -off 0x3E -off 0x10803E -len 450 -wt !VHD!
 	)
 )
 if "%1"=="boot_core" (
-	!CASM! -If ../../Libs/casm -i src/boot_core.csm -tti build/boot_core.asm -ati build/bin/boot_core.img -off 0x0 -off 0x108200 -len 2560 -wt !VHD!
+	!CASM! -If ../../Libs/casm -i src/boot_core.asm -tti build/boot_core.asm -ati build/bin/boot_core.img -off 0x0 -off 0x108200 -len 2560 -wt !VHD!
 )
 if "%1"=="ldr_head" (
-	!CASM! -If ../../Libs/casm -i src/xtloader_head.csm -tti build/xtloader_head.asm -ati build/bin/LDRHEAD.BIN
+	!CASM! -If ../../Libs/casm -i src/xtloader_head.asm -tti build/xtloader_head.asm -ati build/bin/LDRHEAD.BIN
 	echo Mounting...
 	diskpart /s scripts\mountdisk.dps > nul
 	if not !ERRORLEVEL!==0 (

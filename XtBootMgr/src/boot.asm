@@ -11,9 +11,9 @@
 ; -- [0x0A00 - 0x1A00] Stage 2 code
 ; -- [0x3C00 - 0x3E00] Relocation Address
 
-#include version.hsm
+#include version_h.asm
 #define STDCONIO_MINIMAL 1
-#include <stdconio.hsm>
+#include <stdconio_h.asm>
 
 ; We'll move here to get out of the way and to be sure of our living address.
 %define RELOCATION_ADDRESS 0x3C00
@@ -161,7 +161,7 @@ SignatureWrong:
 	PrintHexNum(ax)
 	hlt
 
-#include <stdconio.csm>
+#include <stdconio.asm>
 
 @rodata:
 

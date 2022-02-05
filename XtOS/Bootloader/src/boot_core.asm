@@ -16,8 +16,8 @@
 db 'Xt' ; Binary signature
 dw 5    ; How many sectors this stage takes up
 
-#include version.hsm
-#include <stdconio.hsm>
+#include version_h.asm
+#include <stdconio_h.asm>
 
 Start: {
 	xor ax, ax
@@ -182,9 +182,9 @@ getDriveGeometry: {
 	.End:
 ret }
 
-#include <stdconio.csm>
-#include <drive.csm>
-#include <fat1x.csm>
+#include <stdconio.asm>
+#include <drive.asm>
+#include <fat1x.asm>
 
 @rodata:
 

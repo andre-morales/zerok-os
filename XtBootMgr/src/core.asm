@@ -15,8 +15,8 @@
 ; -- [0x1B00 - 0x1C00] Partition array
 ; -- [0x2000] Generic stuff buffer
 
-#include version.hsm
-#include <stdconio.hsm>
+#include version_h.asm
+#include <stdconio_h.asm>
 
 var short cursor
 var byte partitionMapSize
@@ -668,8 +668,8 @@ setCursor: {
 ret }
 
 /* Code includes */
-#include <drive.csm>
-#include <stdconio.csm>
+#include <drive.asm>
+#include <stdconio.asm>
 
 PartitionTypeNamePtrIndexArr:
 	db 0, 1, 1, 1, 1, 5, 2, 6

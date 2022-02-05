@@ -16,8 +16,8 @@
 ; -- [0x2000] Page table
 ; -- [0x3000] Stage 4 code starts here
 
-#include version.hsm
-#include <stdconio.hsm>
+#include version_h.asm
+#include <stdconio_h.asm>
 
 %define FAT16_CLUSTER_BUFFER_ADDR 0x1000
 %define STAGE4_FILE_ADDR 0x2000
@@ -284,9 +284,9 @@ FileNotFoundOnDir: {
 }
 
 ; Code imports
-#include <stdconio.csm>
-#include <drive.csm>
-#include <fat1x.csm>
+#include <stdconio.asm>
+#include <drive.asm>
+#include <fat1x.asm>
 
 @rodata:
 

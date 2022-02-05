@@ -8,8 +8,8 @@
    Creation: 07/10/2020
    Modified: 27/01/2022 */
 
-#include <stdconio.hsm>
-#include version.hsm
+#include <stdconio_h.asm>
+#include version_h.asm
 
 %define STAGE2_ADDR 0x6000
 
