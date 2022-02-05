@@ -1,0 +1,2 @@
+select vdisk file="E:\Users\Andre\Projects\Assembly\XtX\Test Machines\vdisk.vhd"
+detach vdisk
