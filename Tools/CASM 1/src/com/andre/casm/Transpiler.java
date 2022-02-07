@@ -108,26 +108,13 @@ public class Transpiler {
 					foundDataSection = true;
 					out.write(line);
 					out.write('\n');
-
-					for (var variable : globalVars) {
-						int size = variable.value;
-						out.write("\t" + variable.key + ": ");
-
-						if(size == 0){
-							out.write("\n");
-							continue;
-						}
-						out.write("times " + size + " db 0\n");
-					}
+					dumpDataSection(out);
 				} else if (tline.startsWith("var ")) {
 					var field = Str.remainingAfter(tline, "var ");
 					var pair = getVariable(field);
 					globalVars.add(pair);
 
-				} else if (tline.startsWith("lvar ")) {
-					var field = Str.remainingAfter(tline, "lvar ");
-					reserveStackVar(field);
-				}  else if (tline.startsWith("farg ")) {
+				} else if (tline.startsWith("farg ")) {
 					var field = Str.remainingAfter(tline, "farg ");
 					reserveStackArg(field);
 				} else if(tline.startsWith("_clstack()")){
@@ -138,13 +125,16 @@ public class Transpiler {
 				} else {
 					var statements = splitStatements(line);
 
-					for (String stat : statements) {
-						if (!stat.trim().startsWith(";")) {
-							stat = processStatement(stat);
+					for (var stat : statements) {
+						var tr_stat = stat.trim();
+						if (!tr_stat.startsWith(";")) {
+							stat = processStatement(stat, tr_stat);
 						}
-
-						out.write(stat);
-						out.write('\n');
+						
+						if(stat != null){
+							out.write(stat);
+							out.write('\n');
+						}
 					}
 				}
 			}
@@ -157,6 +147,20 @@ public class Transpiler {
 		if(!foundRODataSection && constants.size() > 0) System.out.println("Warning: Constant strings were defined but no @rodata section defined.");
 	}
 
+	void dumpDataSection(Writer out) throws IOException {
+		for (var variable : globalVars) {
+			int size = variable.value;
+			out.write("\t" + variable.key + ": ");
+
+			if(size == 0){
+				out.write("\n");
+				continue;
+			}
+			//out.write("times " + size + " db 0\n");
+			out.write("resb " + size + "\n");
+		}
+	}
+	
 	List<String> solveInclude(String str){
 		Path filePath = null;
 		if(str.startsWith("<") && str.endsWith(">")){
@@ -189,8 +193,9 @@ public class Transpiler {
 		var onColonComment = false;
 		var statementBuffer = new StringBuilder();
 		
+		int statementIndex = 0;
+		
 		var chars = str.toCharArray();
-
 		if(onMultiLineComment){	
 			statementBuffer.append(';');
 		}
@@ -237,7 +242,6 @@ public class Transpiler {
 						break;
 					case '|':
 						statements.add(statementBuffer.toString());
-
 						statementBuffer = new StringBuilder();
 						onQuotes = 0;
 						break;
@@ -254,14 +258,24 @@ public class Transpiler {
 				}
 			}
 		}
+
 		statements.add(statementBuffer.toString());
 		return statements;
 	}
 	
-	String processStatement(String stat) {
+	/** Processes the statement given and outputs a result to be placed in the file.
+	 *  @param stat pure statement after splitting.
+	 *  @param tr_stat trimmed statement to be used for logic. */
+	String processStatement(String stat, String tr_stat) {
+		if (tr_stat.startsWith("lvar ")) {
+			var field = Str.remainingAfter(stat, "lvar ");
+			reserveStackVar(field);
+			return null;
+		} 
+	
 		var statementBuffer = new StringBuilder();
 		char[] chars = stat.toCharArray();
-
+		
 		for (int i = 0; i < chars.length; i++) {
 			char c = chars[i];
 			char nc = ((i + 1 < chars.length) ? chars[i + 1] : '\0');
@@ -334,7 +348,7 @@ public class Transpiler {
 		}
 		return result.toString();
 	}
-	
+		
 	static String getConstantString(String str) {
 		if (str.startsWith("\"")) {
 			str = str
@@ -348,7 +362,7 @@ public class Transpiler {
 	public Pair<String, Integer> getVariable(String line){
 		var pair = new Pair<String, Integer>();
 		var sp = line.split(" ", 2);
-		pair.key = sp[1]; // Variable name
+		pair.key = sp[1].trim(); // Variable name
 		
 		String type = sp[0].trim();
 		int iq = type.indexOf("[");

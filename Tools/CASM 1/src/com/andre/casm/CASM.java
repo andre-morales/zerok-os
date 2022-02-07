@@ -21,7 +21,7 @@ public final class CASM {
 	public static final String VERSION = "0.9.2";
 
 	static List<String> inputs = new ArrayList<>();
-	static List<String> offsets = new ArrayList<>();
+	static List<Integer> offsets = new ArrayList<>();
 	static Map<String, String> defines = new HashMap<>();
 	static List<String> includeFolders = new ArrayList<>();
 	
@@ -31,7 +31,8 @@ public final class CASM {
 		String ctrl = null;
 		boolean chainInput = false;
 		var length = "";
-		for (String token : args) {
+		for (int i = 0; i < args.length; i++) {
+			String token = args[i];
 			if (ctrl != null) {
 				switch (ctrl) {
 					/* Input file */
@@ -40,10 +41,6 @@ public final class CASM {
 						break;
 					case "If":
 						includeFolders.add(token);
-						break;
-					/* Specify offset for something */
-					case "off":
-						offsets.add(token);
 						break;
 					case "len":
 						length = token;
@@ -74,7 +71,7 @@ public final class CASM {
 						}
 						if (!res) {
 							System.out.println("Assembling failed.");
-							return;
+							System.exit(1);
 						}
 					}
 					break;
@@ -102,7 +99,6 @@ public final class CASM {
 			}
 
 			chainInput = false;
-			ctrl = token;
 			switch (token) {
 				case "-i":
 					ctrl = "i";
@@ -128,7 +124,9 @@ public final class CASM {
 					ctrl = "len";
 					break;
 				case "-off":
-					ctrl = "off";
+					int n = parseHexNum(args[++i]);
+					offsets.add(n);
+					
 					break;
 				case "-wt":
 					ctrl = "wt";
@@ -145,6 +143,19 @@ public final class CASM {
 		}
 	}
 
+	static int parseHexNum(String str){
+		str = str.trim();
+		
+		int p = str.indexOf("+");
+		if(p != -1){
+			return parseHexNum(str.substring(0, p)) + parseHexNum(str.substring(p + 1));
+		} else if (str.startsWith("0x")) {
+			return Integer.parseInt(str.substring(2), 16);
+		} else {
+			return Integer.parseInt(str, 10);
+		}
+	}
+	
 	static String reqInput(int index) {
 		try {
 			return inputs.get(index);
@@ -155,13 +166,7 @@ public final class CASM {
 
 	static int optionalOffset(int index) {
 		try {
-			var off = offsets.get(index);
-			if (off.startsWith("0x")) {
-				return Integer.parseInt(off.substring(2), 16);
-			} else {
-				return Integer.parseInt(off, 10);
-			}
-
+			return offsets.get(index);
 		} catch (ArrayIndexOutOfBoundsException e) {
 			return 0;
 		}
@@ -217,7 +222,7 @@ public final class CASM {
 
 	boolean assemble(String input, String output) {
 		System.out.println("Assembling '" + input + "' to '" + output + "'");
-		return exec("nasm", input, "-o" + output) == 0;
+		return exec("yasm", input, "-o" + output) == 0;
 	}
 
 	static int exec(String... cmd) {
