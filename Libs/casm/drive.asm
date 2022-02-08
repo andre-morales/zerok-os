@@ -1,6 +1,6 @@
 /* Drive reading system
    Author:   André Morales 
-   Version:  1.07
+   Version:  1.08
    Creation: 02/01/2021
    Modified: 05/02/2022 */
 
@@ -138,7 +138,7 @@ Drive.CHS.GetProperties: {
 	mov [Drive.CHS.headsPerCylinder], ax
 	
 	mov ax, cx
-	and al, 0b00111111
+	and al, 00111111b
 	mov [Drive.CHS.sectorsPerTrack], al
 	
 	mul dh

@@ -48,7 +48,7 @@ Start: {
 	call GetDriveGeometry
 	
 	Print(."\NPress any key to read the partition map.") 
-	Pause()
+	call WaitKey
 	mov di, PARTITION_ARRAY
 	mov word [Drive.bufferPtr], 0x2000
 	call ReadPartitionMap
@@ -61,7 +61,7 @@ Start: {
 	mov [partitionMapSize], al
 	
 	Print(."\NPress any key to enter boot select...\N")
-	Pause()
+	call WaitKey
 	jmp Menu
 }
 
@@ -69,7 +69,7 @@ Menu: {
 	mov word [cursor], 0
 	
 	MainMenu:
-		ClearScreen(0b0_110_1111)
+		ClearScreen(0_110_1111b)
 		mov bx, 00_00h
 		mov ax, 25_17h
 		call drawSquare
@@ -85,7 +85,7 @@ Menu: {
 	MenuSelect:	
 		call DrawMenu	
 			
-		Getch()
+		call Getch
 		cmp ah, 48h | je .upKey
 		cmp ah, 50h | je .downKey
 		cmp ah, 1Ch | je .enterKey
@@ -143,22 +143,22 @@ Menu: {
 			
 			cmp word [es:0x7DFE], 0xAA55 | jne .notBootable
 			Print(."\NPress any key to boot...\N")	
-			Pause()
+			call WaitKey
 			jmp .chain		
 			
 			.notBootable:
 			Print(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
-			Getch()	
+			call Getch	
 			cmp ah, 15h | jne BackToMainMenu.clear
 			
 			.chain:
-			ClearScreen(0b0_000_0111)
+			ClearScreen(0_000_0111b)
 			
 			mov dl, [Drive.id]
 			jmp 0x0000:0x7C00	
 		
 		BackToMainMenu:
-			Pause()
+			call WaitKey
 			.clear:
 		jmp MainMenu
 }
@@ -577,7 +577,7 @@ BootFailureHandler: {
 	.L1:
 	push cs | pop ds
 	Print(."\NXtBootMgr got control back. The bootsector either contains no executable code, or invalid code.\NGoing back to the main menu.")
-	Pause()
+	call WaitKey
 	jmp Menu
 }
 
@@ -671,7 +671,7 @@ ret }
 #include <drive.asm>
 #include <stdconio.asm>
 
-PartitionTypeNamePtrIndexArr:
+PartitionTypeNamePtrIndexArr: {
 	db 0, 1, 1, 1, 1, 5, 2, 6
 	db 1, 1, 1, 3, 1, 1, 7, 1
 	db 1, 1, 1, 1, 1, 1, 1, 1
@@ -704,8 +704,9 @@ PartitionTypeNamePtrIndexArr:
 	db 1, 1, 1, 1, 1, 1, 1, 1
 	db 1, 1, 1, 1, 1, 1, 1, 1
 	db 1, 1, 1, 1, 1, 1, 1, 1
+}
 
-PartitionTypeNamePtrArr:
+PartitionTypeNamePtrArr: {
 	dw ."Empty"
 	dw ."Unknown"
 	dw ."FAT / RAW"
@@ -714,9 +715,11 @@ PartitionTypeNamePtrArr:
 	dw ."Extended Partition"
 	dw ."NTFS"
 	dw ."FAT(12/16)"
-	
+}
+
 @rodata:
 
 times 7*512-($-$$) db 0x90 ; Fill rest of stage 2 with no-ops. (For alignment purposes.)
 
+SECTION .bss
 @data:

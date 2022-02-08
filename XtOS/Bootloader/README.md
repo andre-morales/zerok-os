@@ -2,6 +2,7 @@
 This is the bootloader XtOS uses. 
 XtLoader is written specifically with FAT16 partitions in mind, and
 is divided in multiple stages.
+
 ## Stage 1
 Boot Head.
 

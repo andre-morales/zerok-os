@@ -1,5 +1,5 @@
 ; Author:   André Morales 
-; Version:  2.0
+; Version:  2.01
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
 
@@ -23,9 +23,6 @@
 	mov cl, %2
 	call putnch
 %endmacro
-
-%define Getch() call getch
-%define Pause() call pause
 
 %macro PrintColor 2
 	mov si, %1

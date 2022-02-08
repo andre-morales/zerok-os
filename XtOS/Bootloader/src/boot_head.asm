@@ -28,6 +28,7 @@ jmp Start
 times (21 + 12 + 26) db 0xFF
 
 ; Start of code at 0x3E
+SECTION .text
 Start: {
 	cli
 	
@@ -265,7 +266,7 @@ Drive:
 		
 		; Calculate sectors
 		mov ax, cx
-		and ax, 0b00000000_00111111
+		and ax, 00000000_00111111b
 		stosw ; Sectors per Track
 		
 		; Sectors * Heads
@@ -359,17 +360,18 @@ times 510-($-$$) db 0x90 ; Fill the rest of the boostsector code with no-ops
 dw 0xAA55                ; Boot signature
 
 ; --------- Variable space ---------
+SECTION .bss vstart=0x7E00
 #ifdef LBA_AVAILABLE
 lbaDAPS:			 
-	.size:			 db 16       ; Size
-					 db 0x00     ; Always 0
-	.sectors:		 dw 0x0001   ; Sectors to read
-	Drive.bufferPtr: dw 0x2000   ; Destination buffer
-					 dw 0x0000   ; Destination segment
-	Drive.readLBA:	 dd 0x000000 ; Lower LBA
-					 dd 0x000000 ; Upper LBA
+	.size:			 resb 1 ; Size (16)
+					 resb 1 ; Always 0
+	.sectors:		 resw 1 ; Sectors to read (1)
+	Drive.bufferPtr: resw 1 ; Destination buffer (0x2000)
+					 resw 1 ; Destination segment (0)
+	Drive.readLBA:	 resd 1 ; Lower LBA (~)
+					 resd 1 ; Upper LBA (0)
 #else
-	Drive.bufferPtr: dw 0x2000   ; Destination buffer
+	Drive.bufferPtr: resw 1 ; Destination buffer (0x2000)
 #endif
 
 @data:

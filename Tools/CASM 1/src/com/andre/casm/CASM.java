@@ -18,7 +18,7 @@ import java.util.Map;
  */
 public final class CASM {
 
-	public static final String VERSION = "0.9.2";
+	public static final String VERSION = "0.9.3";
 
 	static List<String> inputs = new ArrayList<>();
 	static List<Integer> offsets = new ArrayList<>();

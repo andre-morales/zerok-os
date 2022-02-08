@@ -1,5 +1,5 @@
 ; Author:   André Morales 
-; Version:  2.0
+; Version:  2.01
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
 
@@ -51,15 +51,15 @@ putnch: {
 ret }
 
 /* Waits for a key press and stores the key in the AL register. */
-getch: {
+Getch: {
 	xor ah, ah
 	int 16h
 ret }
 
 /* Waits for a key press. */
-pause: {
+WaitKey: {
 	push ax
-	call getch
+	call Getch
 	pop ax
 ret }
 
@@ -101,7 +101,7 @@ printDecNum: {
 	mov bp, sp
 	
 	_clstack()
-	var char[6] str
+	lvar char[6] str
 	sub sp, $stack_vars_size
 	
 	push ds
