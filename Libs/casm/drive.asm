@@ -57,9 +57,9 @@ Drive.ReadSector: {
 	
 	#ifdef DRIVE_DBG
 	Print(."\NSector 0x")
-	PrintHexNum [sector_h]
+	PrintHexNum word [$sector_h]
 	Putch(' ')
-	PrintHexNum [sector_l]
+	PrintHexNum word [$sector_l]
 	#endif
 	
 	cmp byte [Drive.LBA.available], 0

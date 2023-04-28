@@ -17,18 +17,7 @@ if "%1"=="boot_core" (
 	!CASM! -If ../../Libs/casm -i src/boot_core.asm -tti build/boot_core.asm -ati build/bin/boot_core.img -off 0x0 -off !part!+0x200 -len 2560 -wt !VHD!
 )
 if "%1"=="ldr_head" (
-	!CASM! -If ../../Libs/casm -i src/xtloader_head.asm -tti build/xtloader_head.asm -ati build/bin/LDRHEAD.BIN
-	echo Mounting...
-	diskpart /s scripts\mountdisk.dps > nul
-	if not !ERRORLEVEL!==0 (
-		echo Mount failed.
-		goto :eof
-	)
-	copy "build\bin\LDRHEAD.BIN" "Z:\XTOS\LDRHEAD.BIN"
-	echo Done.
-	if not "%2"=="-keep" (
-		diskpart /s scripts\unmountdisk.dps > nul
-	)
+	make xtldr_head
 )
 if "%1"=="ldr_core" (
 	make xtldr_core

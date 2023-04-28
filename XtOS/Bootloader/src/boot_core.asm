@@ -7,64 +7,70 @@
 ; Creation: 02/01/2021
 ; Modified: 25/01/2021
 
-; -- [...    - 0x06FF] Stack
-; -- [0x0700 -  ...  ] Where Stage 3 will be loaded
+; -- [0x0500 -  ...  ] Where Stage 3 will be loaded
 ; -- [0x3000 -  ...  ] FAT16 Cluster Buffer
 ; -- [0x6000 -  ...  ] Stage 2 (Us)
 ; -- [0x7C00 - 0x7DFF] Our VBR still loaded
+; -- [0x7E00 - 0x7FFF] Stack
+#include version_h.asm
+#include <stdconio_h.asm>
+
+SECTION .text vstart=0x6000
 
 db 'Xt' ; Binary signature
 dw 5    ; How many sectors this stage takes up
-
-#include version_h.asm
-#include <stdconio_h.asm>
 
 Start: {
 	xor ax, ax
 	mov ds, ax
 	mov es, ax
-	mov ss, ax
-	pop word [FATFS.beginningSct]
+	
+	pop word [FATFS.beginningSct]      ; Get beginning sector pushed by boot_head
 	pop word [FATFS.beginningSct + 2]
 	
-	mov [Drive.id], dl
+	mov ss, ax
+	mov sp, 0x7FF0
+	
+	mov word [0x30 * 4 + 0], Halt ; Setup interrupt 0x30 to Halt
+	mov word [0x30 * 4 + 2], 0
+	
+	mov [Drive.id], dl ; Store drive number
 
 	Print(."\N         XtOS Bootloader v${VERSION}")
 	
-	mov word [Drive.bufferPtr], 0x0700
+	mov word [Drive.bufferPtr], 0x0500
 	mov word [FATFS.clusterBuffer], 0x2000
 	
 	call getDriveGeometry
 	call getBootPartitionProperties
 	
-	
 	Print(."\NPress any key to load LDRHEAD.BIN.")
-	Getch()
+	call WaitKey
 	call Load_LdrHeadBin
-	
+
 	; Copy all Drive variables to the pointer stored in Stage 3.
 	mov si, Drive
-	mov di, [0x0702]
+	mov di, [0x702]
 	mov cx, Drive.vars_end - Drive
 	rep movsb 
 	
 	; Copy all FATFS variables to the pointer stored in Stage 3.
 	mov si, FATFS
-	mov di, [0x0704]
+	mov di, [0x704]
 	mov cx, FATFS.vars_end - FATFS
 	rep movsb 
 	
 	; Jump to Stage 3.
-	jmp 0x0700
+	jmp 0x700
 }
 
 ; -- Load XTOS/LDRHEAD.BIN
 Load_LdrHeadBin: {	
-	mov si, ."XTOS       /LDRHEAD BIN"
+	mov si, ."XTOS/LDRHEAD BIN"
 	call FATFS.FindFile
 	Print(."\NFound.")
 	
-	mov word [Drive.bufferPtr], 0x700
+	mov word [Drive.bufferPtr], 0x500
 	
 	push ax
 	call FATFS.ReadClusterChain
@@ -73,12 +79,14 @@ Load_LdrHeadBin: {
 ret }
 
 FileNotFoundOnDir: {
+	push si
 	Print(."\NFile '")
-	mov si, [FATFS.filePathPtr]
+	;mov si, [FATFS.filePathPtr]
+	pop si
 	call print
 	
 	Print(."' not found on directory.")
-	jmp Halt
+	int 30h
 }
 
 
@@ -190,4 +198,5 @@ ret }
 
 times (512 * 5)-($-$$) db 0x90 ; Round to 1kb.
 
+SECTION .bss
 @data:

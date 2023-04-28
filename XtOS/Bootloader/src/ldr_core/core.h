@@ -1,5 +1,13 @@
 #include <stdint.h>
 
+struct Video {
+	uint8_t mode;
+	uint8_t columns;
+	void* vram;
+	uint8_t cur_x;
+	uint8_t cur_y;
+};
+
 void loadArgs(void*);
 
 void video_init();

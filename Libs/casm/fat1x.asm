@@ -1,6 +1,6 @@
 /* FAT16 reading lib
    Author:   André Morales 
-   Version:  0.32
+   Version:  0.33
    Creation: 02/01/2021
    Modified: 05/02/2022 */
 
@@ -26,11 +26,7 @@ var void FATFS
 	var short .directoryEntriesPerCluster
 	var short .bytesPerCluster
 
-	var char* .filePathPtr
 	var int .directorySector
-	var short .fileCluster
-	var char[12] .currentFile
-	var bool .lookingForFolder
 	var bool .inRootDirectory
 	var byte* .clusterBuffer
 	var byte[512] .clusterMapBuffer
@@ -55,7 +51,7 @@ FATFS.Initialize: {
 	
 	lodsw         ; [13] Total logical sectors
 	
-	call .testClusterBits ; Discover type of FAT     
+	call .testClusterCount ; Discover type of FAT     
 	
 	inc si  
 	movsw         ; [16] Logical sectors per FAT
@@ -106,23 +102,37 @@ FATFS.Initialize: {
 	pop bp
 ret
 
-	.testClusterBits: {
-		test ax, ax | jz Halt ; FAT32. Not supported.
+	.testClusterCount: {
+		test ax, ax | jz .halt  ; This is FAT32, and is not supported.
 		cmp ax, 4085 | jg .fat16
 		mov byte [FATFS.clusterBits], 12
 		ret
 		
 		.fat16:
 		mov byte [FATFS.clusterBits], 16
-	ret }
+	ret
+	
+		.halt:
+		int 30h
+	}
 }
 
 FATFS.FindFile: {
 	push bp
 	mov bp, sp
 
-	mov [FATFS.filePathPtr], si
-	mov byte [FATFS.lookingForFolder], 1
+	_clstack()
+	lvar char* pathStrPtr     | ; Pointer to the path
+	lvar char[11] currentFile | ; Current file we're searching fore
+	lvar byte lastFile        | ; Is this the last file and the path walking is over
+	lvar word fileCluster     | ; The cluster of the file/directory we were looking for
+	sub sp, $stack_vars_size
+
+	push di
+
+	mov byte [$lastFile], 0
+
+	mov [$pathStrPtr], si
 	mov byte [FATFS.inRootDirectory], 1
 	
 	mov si, FATFS.rootDirSct
@@ -142,61 +152,45 @@ FATFS.FindFile: {
 	; Copy specific file name from the
 	; full path to currentFile
 	.GetFileName:
-	mov si, [FATFS.filePathPtr]
-	mov di, FATFS.currentFile
-
-		.l1:
-		lodsb
-		cmp al, '/' | jne .l2
-		xor al, al | stosb
-		jmp .SearchDirectory
-		
-		.l2:
-		stosb
-		test al, al | jnz .l1
-		
-		mov byte [FATFS.lookingForFolder], 0
-	
-	.SearchDirectory:
-	mov [FATFS.filePathPtr], si ; Save our file path ptr back.
+	call FATFS._advanceNextFileInPath
 	
 	.LoadFileEntries:
 	mov si, [FATFS.clusterBuffer]
 	
 	cmp byte [FATFS.inRootDirectory], 1 | je .l3
 	mov cx, [FATFS.directoryEntriesPerCluster]
-	jmp .LoadFileEntry
+	jmp .nextFileEntry
 	
 	.l3:
 	mov cx, 16
 	
-	.LoadFileEntry:
-	call FATFS._testFATFileEntry
-	cmp al, 1 | je .FileNotFound
-	cmp al, 2 | je FileNotFoundOnDir
-	
-	; Store cluster number at 0x1A
-	mov ax, [si + 0x1A]
-	mov [FATFS.fileCluster], ax
-	
-	; Were we looking for a folder?
-	cmp byte [FATFS.lookingForFolder], 1 | je .FoundFolder
-	
-	;Print(."\NFound file.")
-	mov ax, [FATFS.fileCluster]
-	jmp .End
-	
-	.FoundFolder:
-	;Print(."\NFound folder.")
-	push ax
-	call FATFS.ReadCluster
+	.nextFileEntry:
+		call FATFS._testFATFileEntry
+		cmp al, 1 | je .FileNotFound
+		cmp al, 2 | je .FileNotFoundOnDir
 		
-	mov byte [FATFS.inRootDirectory], 0
-	jmp .ReadDirectory
-	
-	.FileNotFound:
-	add si, 32
-	loop .LoadFileEntry
+		; Cluster number at offset in 0x1A entry.
+		mov ax, [si + 0x1A]
+		mov [$fileCluster], ax
+		
+		; Is this the last file on the path string?
+		cmp byte [$lastFile], 0 | je .FoundFolder
+		
+		;Print(."\NFound file.")
+		mov ax, [$fileCluster]
+		jmp .End
+		
+		.FoundFolder:
+		;Print(."\NFound folder.")
+		push ax
+		call FATFS.ReadCluster
+			
+		mov byte [FATFS.inRootDirectory], 0
+		jmp .ReadDirectory
+		
+		.FileNotFound:
+		add si, 32
+	loop .nextFileEntry
 	
 	.LoadNextSector:
 	Print(."LNS.")
@@ -204,36 +198,77 @@ FATFS.FindFile: {
 	
 	; File not present on this sector.
 	.End:
+	pop di
+	
 	mov sp, bp
 	pop bp
-ret }
+ret
 
-/* Compares the string at DS:SI with the current file being searched. */
-FATFS._testFATFileEntry: {
-	push si
+	.FileNotFoundOnDir:
+		jmp FileNotFoundOnDir
 	
-	mov al, [si + 0x00]
-	
-	cmp al, 0 | jne .NotEmpty
-	mov al, 2 | jmp .End
-
-	.NotEmpty:
-	xor bx, bx
-	.cmpFileName:
-		lodsb
-		mov ah, [FATFS.currentFile + bx]
-		cmp ah, al | je .nxt
-		mov al, 1 | jmp .End
+	FATFS._advanceNextFileInPath: {
+		mov si, [$pathStrPtr]
+		lea di, [$currentFile]
+		mov cx, 12
+		.nextch:
+			lodsb
+			cmp al, '/' | je .lastch
+			test al, al | jz .lastfile
+						
+			stosb
+		loop .nextch
 		
-		.nxt:
-		inc bx
-	cmp bx, 11 | jl .cmpFileName
-	
-	xor al, al
-	
-	.End:
-	pop si
-ret }
+		int 30h ; Path isn't over in 11 characters. 
+		
+		.lastfile:
+		mov byte [$lastFile], 1
+		
+		.lastch:
+		mov [$pathStrPtr], si
+		
+		dec cx
+		jcxz .end
+		
+		; Fill the rest of the path with spaces
+		mov al, ' '
+		rep stosb
+		
+		.end:
+	ret
+	}
+
+	/* Compares the string at DS:SI with the current file being searched. */
+	FATFS._testFATFileEntry: {
+		push si | push di
+		
+		lea di, [$currentFile]
+		mov al, [si + 0x00]
+		
+		cmp al, 0 | jne .NotEmpty
+		
+		mov al, 2
+		jmp .End
+
+		.NotEmpty:
+		xor bx, bx
+		.cmpFileName:
+			lodsb
+			mov ah, [di + bx]
+			cmp ah, al | je .nxt
+			mov al, 1 | jmp .End
+			
+			.nxt:
+			inc bx
+		cmp bx, 11 | jl .cmpFileName
+		
+		xor al, al
+		
+		.End:
+		pop di | pop si
+	ret }
+
+}
 
 ; void (short cluster)
 FATFS.ReadCluster: {

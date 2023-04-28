@@ -1,6 +1,6 @@
 [BITS 16]
 [CPU 386]
-[ORG 0x700]
+[ORG 0x500]
 
 /* Author:   André Morales 
    Version:  0.6.2
@@ -8,29 +8,18 @@
    Modified: 25/01/2022 */
 
 ; Physical Map
-; -- [0x0500] Stack
-; -- [0x0700] Stage 3 (us)
-; -- [0x1000] FAT16 Cluster Buffer
-; -- [0x1000] Page directory
-; -- [0x2000] Stage 4 file will be loaded here
-; -- [0x2000] Page table
-; -- [0x3000] Stage 4 code starts here
+; -- [ 500] Stack
+; -- [ 700] Stage 3 (us)
+; -- [1200] FAT16 Cluster Buffer
+; -- [2000] Stage 4 file will be loaded here
+; -- [3000] Stage 4 code starts here
 
 #include version_h.asm
 #include <stdconio_h.asm>
 
-%define FAT16_CLUSTER_BUFFER_ADDR 0x1000
+%define FAT16_CLUSTER_BUFFER_ADDR 0x1200
 %define STAGE4_FILE_ADDR 0x2000
-
-%define PAGE_DIRECTORY 0x1000
-%define PAGE_TABLE 0x2000
-
 %define STAGE4_EXEC_ADDR 0x3000
-
-jmp Start
-
-dw Drive ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
-dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
 
 var short ELF.fileLocation
 var int ELF.entryPoint
@@ -44,31 +33,76 @@ var void XtLoaderStruct
 	var byte vidmode.id
 var void XtLoaderStruct.end
 
+SECTION stack vstart=0x500 progbits
+; Global descriptor table imported by LGDT instruction
+GDT: {
+	; Entry 0 must be null
+	dq 0     
+
+	; Entry 1 (CS)
+	dw 0xFFFF ; Limit (0:15)
+	dw 0      ; Base (0:15)
+	db 0      ; Base (16:23)
+	db 10011010b
+	db 11001111b
+	db 0
+	
+	; Entry 2 (DS)
+	dw 0xFFFF ; Limit (0:15)
+	dw 0      ; Base (0:15)
+	db 0      ; Base (16:23)
+	db 10010010b
+	db 11001111b
+	db 0
+GDT_End:
+
+GDT_Desc:
+	dw GDT_End - GDT
+	dd GDT
+
+GDT_Desc_End:
+}
+times 512-($-$$) db 0x00 ; Fill the reserved stack section
+
+SECTION .text vstart=0x700 follows=stack
+jmp Start
+
+dw Drive ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
+dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
+
 Start: {
+	mov sp, 0x6F0
+
 	Print(."\N-- XtLoader Head ${VERSION}")
 
 	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
 
 	Print(."\NLoading XTLOADER.ELF\N")
-	mov si, ."XTOS       /XTLOADERELF"
-	call FATFS.FindFile
-	
-	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
-	push ax
-	call FATFS.ReadClusterChain
-	
+	mov si, ."XTOS/XTLOADERELF"
+	mov di, STAGE4_FILE_ADDR
+	call ReadFile
+		
 	mov word [ELF.fileLocation], STAGE4_FILE_ADDR
 	call LoadELF
 	Print(."\NExecutable loaded.")
 
-	call SetupPagingStructures
+	;call SetupPagingStructures
 	call GetInfo
 	
 	Print(."\NPress any key to execute XtLdr32.")
-	Getch()
+	call WaitKey
 	jmp Enable32
 }
+
+ReadFile: {
+	mov si, ."XTOS       /XTLOADERELF"
+	call FATFS.FindFile
+	
+	mov word [Drive.bufferPtr], di
+	push ax
+	call FATFS.ReadClusterChain	
+ret }
 
 GetInfo: {
 	; Get current video mode
@@ -108,63 +142,16 @@ Entry32: {
 	mov ax, 0x10
 	mov ds, ax
 	mov es, ax
+	mov ss, ax
 	mov fs, ax
 	mov gs, ax
-	mov ss, ax
-	
-	; Enable paging
-	mov eax, PAGE_DIRECTORY
-	mov cr3, eax
-	
-	mov eax, cr0
-	or eax, 0x80000000
-	mov cr0, eax
-
-	; Setup stack
-	mov esp, 0x7FF0
-	mov edx, [ELF.entryPoint] ; Save entry point on EDX
-	
+		
 	; Set ESI to variables to be passed and jump
 	mov esi, XtLoaderStruct
-	jmp edx
+	jmp [ELF.entryPoint]
 .End: }
 
 [BITS 16]
-
-SetupPagingStructures: {
-	/* -- Setup page directory -- */
-	; Set the first Page Directory Entry to point to a Page Table at 0x2000
-	;                       P P U R
-	;                 P     C W / /
-	;             -   S - A D T S W P
-	mov eax, 010_0000_0_0_0_1_0_1_1_1b
-	mov di, PAGE_DIRECTORY
-	stosd
-	
-	mov cx, 1023 ; Fill the remaining 1023 entries with nothing
-	xor eax, eax
-	rep stosd
-	
-	/* -- Setup page table -- */
-	; Configure the flags we'll use for the pages
-	;                P     P P U R
-	;                A     C W / /
-	;           -  G T D A D T S W P 
-	mov eax, 0_000_0_0_0_0_1_0_1_1_1b
-		
-	mov cx, 16 ; Identity page this many 4kb pages.
-	mov di, PAGE_TABLE
-	.setPage:
-		stosd
-		add eax, 0b1_000000000000
-	loop .setPage
-	
-	; Fill the remaining page table entries with 0.
-	mov cx, 1008
-	xor eax, eax
-	rep stosd
-ret }
-
 ; Loads the ELF file present at 0x3000.
 LoadELF: {
 	push bp
@@ -195,13 +182,14 @@ LoadELFHeader: {
 	mov ax, [bx + 44]
 	mov [ELF.progHeaderCount], ax
 	
+	Print(."\NEntry Point: 0x")
+	PrintHexNum word [ELF.entryPoint]
+	Print(."\N")
 	PrintDecNum [ELF.progHeaderCount]
 	Print(." entries of ")
 	PrintDecNum [ELF.progHeaderSize]
 	Print(." bytes at 0x")
 	PrintHexNum word [ELF.progHeaderTable]
-	Print(."\NEntry: ")
-	PrintDecNum word [ELF.entryPoint]
 ret }
 
 LoadProgramSegments: {	
@@ -261,22 +249,23 @@ LoadSegment: {
 	mov di, STAGE4_EXEC_ADDR
 	
 	mov cx, [p_filesz]
-	rep movsb
+	;rep movsb
 	
 	pop cx | pop si
 ret }
 
-NotAnElf:
+NotAnElf: {
 	Print(."\NNot an ELF file!");
 	jmp Halt
-
-Halt:
+}
+Halt: {
 	Print(."\NHalted.\N")
 	cli | hlt
+}	
 	
 FileNotFoundOnDir: {
 	Print(."\NFile '")
-	mov si, [FATFS.filePathPtr]
+	;mov si, [FATFS.filePathPtr]
 	call print
 	
 	Print(."' not found on directory.")
@@ -290,32 +279,5 @@ FileNotFoundOnDir: {
 
 @rodata:
 
-; Global descriptor table imported by LGDT instruction
-GDT:
-	; Entry 0 must be null
-	dq 0     
-
-	; Entry 1 (CS)
-	dw 0xFFFF ; Limit (0:15)
-	dw 0      ; Base (0:15)
-	db 0      ; Base (16:23)
-	db 10011010b
-	db 11001111b
-	db 0
-	
-	; Entry 2 (DS)
-	dw 0xFFFF ; Limit (0:15)
-	dw 0      ; Base (0:15)
-	db 0      ; Base (16:23)
-	db 10010010b
-	db 11001111b
-	db 0
-GDT_End:
-
-GDT_Desc:
-	dw GDT_End - GDT
-	dd GDT
-
-GDT_Desc_End:
-
+SECTION .bss
 @data:

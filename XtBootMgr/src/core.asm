@@ -1,5 +1,6 @@
 [BITS 16]
 [CPU 8086]
+#define DRIVE_DBG 1
 
 ; Author:   André Morales 
 ; Version:  1.1.0

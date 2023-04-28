@@ -1,15 +1,14 @@
 [BITS 16]
 [CPU 8086]
 [ORG 0x3C00]
-
 ; Author:   André Morales 
 ; Version:  1.1.0
 ; Creation: 06/10/2020
 ; Modified: 01/02/2022
 
-; -- [0x0800 - 0x2802] Test pages
 ; -- [0x0A00 - 0x1A00] Stage 2 code
-; -- [0x3C00 - 0x3E00] Relocation Address
+; -- [0x2000 - 0x2000] Relocation Address
+; -- [0x4800 - 0x6802] Test pages
 
 #include version_h.asm
 #define STDCONIO_MINIMAL 1
@@ -17,11 +16,12 @@
 
 ; We'll move here to get out of the way and to be sure of our living address.
 %define RELOCATION_ADDRESS 0x3C00
-%define TEST_AREA_SEGMENT 0x0080
+%define TEST_AREA_SEGMENT 0x0480
 %define BYTES_PER_SECTOR_TEST_PAGE_SIZE (4096 + 1)
 %define STAGE2_SEGMENT 0xA0
 %define STAGE2_SIZE 7 * 512
 
+SECTION .text vstart=0x3C00
 Entry:	
 	; -- Set up stack and clear segment registers
 	cli         ; Preventing firing of interrupts is good pratice with bootloaders.
@@ -62,6 +62,7 @@ Start:
 	Print(."@XtBootMgr v${VERSION} \NBooted at ")	
 	
 	; Print boot CS:IP
+	pop ax
 	call printHexNum
 	Putch(':')
 	PrintHexNum(bx) 
@@ -79,19 +80,19 @@ Start:
 	; by brute forcing such discovery.
 	; We fill two separate areas in RAM with different contents,
 	; and then, load the same drive sector into both of them. And finnaly,
-	; we compare the two areas until they differ. 
+	; we compare the two areas until they differ.
 	mov bp, BYTES_PER_SECTOR_TEST_PAGE_SIZE
 	
-	; First test area at 0x0800 [0080h:0000h]
+	; First test area at 0x4800 [0480h:0000h]
 	mov ax, TEST_AREA_SEGMENT    
 	mov es, ax
 	xor di, di
 	
-	; Fill first area [0080h:0000h] with AL (0xB0).
+	; Fill first area [0480h:0000h] with AL (0xB0).
 	mov cx, bp 
 	rep stosb
 	
-	; Fill second area [0080h:1004h] with AL (0xB1).
+	; Fill second area [0480h:1004h] with AL (0xB1).
 	inc ax
 	mov cx, bp 
 	rep stosb
@@ -104,12 +105,12 @@ Start:
 	push ax
 	inc cx         ; CH = Cylinder (0), CL = Sector (1)
 	xor dh, dh     ; Head 0
-	xor bx, bx     ; [ES:BX] = [00B0h:0000h]
+	xor bx, bx     ; [ES:BX] = [0480h:0000h]
 	int 13h
 	
 	; Read the same sector to second area
 	pop ax
-	mov bx, bp ; [ES:BX] = [00B0h:1004h]
+	mov bx, bp ; [ES:BX] = [0480h:1004h]
 	int 13h
 	
 	; Compare [ES:DI](first area) and [DS:SI](second area)
@@ -119,9 +120,7 @@ Start:
 	repe cmpsb ; Repeat while they're equal. Stop when encountering a mismatch.
 	
 	dec di
-		
 	PrintHexNum(di) ; Print sector size discovered
-
 	Print(." bytes.\NLoading 0x")	
 	
 	/* Load stage 2 */
@@ -142,8 +141,10 @@ Start:
 	pop dx ; Get drive number back from the stack
 	
 	mov ah, 02  ; AH = 02: Read drive ; AL = Sectors to read
+	mov bx, STAGE2_SEGMENT
+	mov es, bx
 	xor bx, bx  ; Load drive sectors at [ES:BX] = [00A0:0000]
-	mov cx, 01  ; CH = Cylinder 0, CL = Sector 1
+	mov cx, 02  ; CH = Cylinder 0, CL = Sector 1
 	int 13h     ; Read
 
 	Print(." Loaded; ")
@@ -159,14 +160,14 @@ Start:
 SignatureWrong:
 	Print(."\NStage 2 missing?\NBad signature: ")
 	PrintHexNum(ax)
+	
+	.hlt:
 	hlt
+	jmp .hlt
 
 #include <stdconio.asm>
 
 @rodata:
 
-times 440-($-$$) db 0x90 ; Fill the rest of the boostsector code with no-ops
-dd 0x00000000            ; 4 bytes reserved for drive unique ID.
-dw 0x000                 ; Reserved 2 bytes after UUID
-times 64 db 0x00         ; 64 bytes reserved to partition table
-dw 0xAA55                ; Boot signature
+%xdefine padding (440 - ($ - $$))
+times padding db 0x90 ; Fill the rest of the boostsector code with no-ops
