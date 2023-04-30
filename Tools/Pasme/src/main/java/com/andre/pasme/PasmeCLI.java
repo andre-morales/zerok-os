@@ -1,5 +1,6 @@
 package com.andre.pasme;
 
+import com.andre.pasme.transpiler.Transpiler;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -9,23 +10,41 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 /**
- *
- * @author Andre
+ * @author André Morales
+ * @version 1.0.0
+ * 
+ * Main class for the CLI interface of Pasme
+ * 
+ * Last edit: 30/04/2023
  */
 public class PasmeCLI {
+	public static final String VERSION_STR = "1.0.0";
 	private static final String ASSEMBLER_CMD = "YASM";	
 	
-	public void run(String[] args) {
+	/**
+	 * Runs Pasme with CLI arguments
+	 * 
+	 * @param args Arguments.
+	 */
+	public void run(String[] args) {	
 		if (args.length == 0) {
-			System.out.println("-- Pasme Version 1.0 SNAP 1");
+			printHeader();
+			System.out.println("Nothing to do here. To view a list of possible commands, run 'pasme help'.");
 			return;
 		}
 		
 		interpretOrder(args);
 	}
 	
+	/**
+	 * Interprets an order. An order could be to transpile, to assemble,
+	 * to burn an image.
+	 * 
+	 * @param orderLine An order followed by its switches and arguments.
+	 */
 	void interpretOrder(String[] orderLine) {
 		var order = orderLine[0];
 		
@@ -38,6 +57,15 @@ public class PasmeCLI {
 		}
 	}
 	
+	/**
+	 * Invokes the Assembler program on an input .asm file and saves
+	 * the resulting binary.
+	 * <br><br>
+	 * Switches: <br>
+	 * -to: Specifies where to save the assembled binary.
+	 * 
+	 * @param orderLine An assemble order and its arguments.
+	 */
 	void assembleOrder(String[] orderLine) {
 		String input = null;
 		String output = null;
@@ -73,6 +101,17 @@ public class PasmeCLI {
 		}
 	}
 
+	/**
+	 * Invokes the Pasme transpiler on an input file and saves
+	 * the resulting assembly on another file.
+	 * <br><br>
+	 * Switches: <br>
+	 * -to: Specifies where to save the .asm file
+	 * -I: Specifies an include directory
+	 * -D: Defines a preprocessor string 
+	 * 
+	 * @param orderLine A transpile order followed by its switches and arguments.
+	 */
 	void transpileOrder(String[] orderLine) {
 		String input = null;
 		String output = null;
@@ -109,6 +148,19 @@ public class PasmeCLI {
 		tr.transpile(new File(input), new File(output));
 	}
 	
+	/**
+	 * Writes a file or part of it into another file. Often used to burn
+	 * bootloaders on a disk.
+	 * <br><br>
+	 * Switches: <br>
+	 * -to: Specifies the destination file where the input will be written.
+	 * -srcOff: An offset into the input file. By default 0.
+	 * -dstOff: An offset into the destination file. By default 0.
+	 * -length: How many bytes to record. If not specified, the whole input will
+	 * be written.
+	 * 
+	 * @param orderLine A burn order followed by its switches and arguments.
+	 */
 	void burnOrder(String[] orderLine) {
 		String input = null;
 		String output = null;
@@ -188,13 +240,31 @@ public class PasmeCLI {
 		}
 	}
 	
+	/**
+	 * Prints the CLI help text on the console.
+	 * 
+	 * @param orderLine Ignored as of this version.
+	 */
 	void helpOrder(String[] orderLine) {
-			
+		printHeader();
+		
+		var stream = getClass().getResourceAsStream("/res/help.txt");
+		
+		try (var scan = new Scanner(stream)) {
+			while (scan.hasNextLine()) {
+				System.out.println(scan.nextLine());
+			}
+		}
+	}
+	
+	void printHeader() {
+		System.out.println("-- Pasme Version " + VERSION_STR);
 	}
 	
 	/**
-	 * Runs a program with optional CLI arguments. This method always waits for
-	 * the program to finish completely and dumps all of its output into stdout.
+	 * Runs a program with optional CLI arguments. The program will have all of
+	 * its output redirected to stdout. This function only returns when the
+	 * process has finished running completely.
 	 * 
 	 * @param cmd The program command followed by its arguments.
 	 * @return The return code of the program.
@@ -234,6 +304,16 @@ public class PasmeCLI {
 		}
 	}
 	
+	/**
+	 * Converts a fancy number string into a number.
+	 * Examples:
+	 * "0x30"        -> 48
+	 * "0x30 + 2"    -> 50
+	 * "0x30 + 0x30" -> 96
+	 * 
+	 * @param str The string to convert. Can be in base 10, 16, or a mix of both.
+	 * @return Converted number.
+	 */
 	static int parseNumber(String str){
 		str = str.trim();
 		

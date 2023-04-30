@@ -2,17 +2,18 @@
 
 Esse projeto é uma evolução do meu antigo XtX, desenvolvido entre 2020 e 2022, agora mais documentado.
 ZeroK se trata de um sistema operacional experimental que tem como objetivo desenvolver conhecimento sobre
-linguagens de baixo nível (Assembly, C e C++), arquitetura de SOs, funcionamento da CPU, e outras áreas variadas.
+linguagens de baixo nível (Assembly, C e C++), arquitetura de SOs, funcionamento da CPU, entre outras áreas.
 
 ## Projetos Auxiliares
-Durante o desenvolvimento do ZeroK, surgiu a necessidade de outros projetos complementares, como o CASM e o XtBootMgr, fundamentais no processo de criação.
+Durante o desenvolvimento do ZeroK, surgiu a necessidade de outros projetos tangentes complementares, como é o caso do Pasme e o XtBootMgr.
 
-## CASM
-Como uma parte significante do desenvolvimento do SO e do Bootloader precisa ser feita em Assembly e essa linguagem pode ser
-muito difícil de visualizar, viu-se a necessidade de criar uma linguagem auxiliar que seja transpilada para Assembly.
-O CASM é quase idêntico ao Assembly, porém com algums recursos extras para melhorar o código estéticamente e funcionalmente. O transpilador foi desenvolvido em Java e encontra-se na pasta na pasta CASM no repositório.
+## Pasme
+Antigo CASM, criado para simplificar o processo do desenvolvimento do SO e do Bootloader.
+A linguagem é desenvolvida conforme a necessidade do projeto e é quase idêntica a linguagem Assembly, porém com alguns recursos extras para melhorar o código estéticamente e funcionalmente.
+A ferramenta Pasme é desenvolvida em Java e contém o transpilador e alguns outros recursos úteis. Seu código fonte se encontra na pasta Tools/Pasme do repositório.
+O Pasme é utilizado tanto no XtBootMgr quanto no ZeroK.
 
-O CASM é utilizado tanto no XtBootMgr quanto no ZeroK.
+Para fins legados, o CASM continua no repositório na pasta Tools/CASM 1, porém ele não deve ser usado no futuro.
 
 ## XtBootMgr
 Como parte do aprendizado fundamental do processo de boot, esse projeto também desenvolve um bootloader dedicado, flexível e minimalista.
@@ -25,7 +26,7 @@ Como parte do aprendizado fundamental do processo de boot, esse projeto também 
 
 ## 🚀 Compilação e Teste
 Para compilar e testar o sistema e seus projetos auxiliares serão exigidas diversas ferramentas.
-* Java para o uso do CASM
+* Java para o uso do Pasme
 * NASM para compilar o código gerado em Assembly
 * GCC para compilar o código em C.
 
