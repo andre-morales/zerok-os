@@ -14,8 +14,19 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- *
- * @author Andre
+ * The Pasme transpiler itself. Here's an example on how to use it:
+ * 
+ * <pre>{@code
+ * var inputFile = new File("input.pa");
+ * var output = new File("assembly.asm");
+ * 
+ * var tpiler = new Transpiler();
+ * tpiler.transpile(inputFile, output);
+ * }</pre>
+ * <br> Last edit: 29/04/2023
+ * 
+ * @author André Morales
+ * @version 2.0.0
  */
 public class Transpiler {
 	static final Map<String, Integer> VARIABLES_SIZES = VariableTypes16.get();

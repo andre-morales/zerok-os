@@ -38,6 +38,6 @@
 		<maven.compiler.source>20</maven.compiler.source>
 		<maven.compiler.target>20</maven.compiler.target>
 		<exec.mainClass>com.andre.pasme.Main</exec.mainClass>
-		<maven.javadoc.skip>true</maven.javadoc.skip> 
+		<maven.javadoc.skip>true</maven.javadoc.skip>
 	</properties>
 </project>

@@ -13,12 +13,13 @@ import java.util.Map;
 import java.util.Scanner;
 
 /**
+ * CLI interface of Pasme. It must be instantiated and have its run() method
+ * called with an order.
+ * <br>
+ * <br> Last edit: 30/04/2023
+ * 
  * @author André Morales
  * @version 1.0.0
- * 
- * Main class for the CLI interface of Pasme
- * 
- * Last edit: 30/04/2023
  */
 public class PasmeCLI {
 	public static final String VERSION_STR = "1.0.0";
@@ -35,7 +36,7 @@ public class PasmeCLI {
 			System.out.println("Nothing to do here. To view a list of possible commands, run 'pasme help'.");
 			return;
 		}
-		
+
 		interpretOrder(args);
 	}
 	
@@ -257,6 +258,7 @@ public class PasmeCLI {
 		}
 	}
 	
+	/** Prints the Pasme header with version. */
 	void printHeader() {
 		System.out.println("-- Pasme Version " + VERSION_STR);
 	}

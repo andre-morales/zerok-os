@@ -1,12 +1,12 @@
 package com.andre.pasme.transpiler;
 
 /**
+ * String utilities class. Used by the transpiler when doing text analysis.
+ * <br>
+ * <br>Last edit: 29/04/2023
+ * 
  * @author André Morales
  * @version 1.0
- * 
- * Last edit: 29/04/2023
- * 
- * String utilities class.
  */
 public class Str {
 	private Str(){}

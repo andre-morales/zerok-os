@@ -1,9 +1,11 @@
-.PHONY: all xtldr_core xtldr_head mountdisk unmountdisk
-
 CFLAGS=-march=i386 -nostdlib -Qn -O2
 CCFLAGS=-ffreestanding -std=gnu99 -lgcc 
 RC=call scripts\rc -sh C:\cygwin64\bin\bash.exe -c
 CASM=call scripts\casm
+
+.PHONY: all xtldr_core xtldr_head mountdisk unmountdisk
+
+# By default, build XtLdr Core
 all: xtldr_core
 
 # XtLoader Head
