@@ -9,6 +9,7 @@ void main(void* args){
 
 	print("\n\n-- XtLoader 32 --");
 	print("\nReached protected mode.");
+	print("\nBinary version 2.");
 }
 
 void loadArgs(void* args){

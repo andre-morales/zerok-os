@@ -1,15 +1,17 @@
-RC=call scripts\rc -sh C:\cygwin64\bin\bash.exe -c
-PASME=call scripts\pasme
-CASM=call scripts\casm
-
-C_ASSEMBLER=${RC} @..\..\Tools\GCC\bin\i686-elf-as.exe
-C_COMPILER=${RC} @..\..\Tools\GCC\bin\i686-elf-gcc.exe
-
-CFLAGS=-march=i386 -O2 -Qn
-CCFLAGS=-ffreestanding -std=gnu99 -lgcc -nostdlib -m32
-CAFLAGS=--32
-
+# -- Config --
 TestDisk=..\..\Test Machines\vdisk.vhd
+
+# -- Tools --
+PASME=call scripts\pasme
+C_ASSEMBLER=..\..\Tools\GCC\bin\i386-elf-as.exe
+C_COMPILER=..\..\Tools\GCC\bin\i386-elf-gcc.exe
+
+# -- Flags --
+# Flags for both compiler and assembler
+CFLAGS=
+
+#Flags for just the compiler
+CCFLAGS=-ffreestanding -nostdlib -lgcc
 
 .PHONY: all xtldr_core xtldr_head mountdisk unmountdisk
 
@@ -32,16 +34,19 @@ xtldr_core: build\bin\XTLOADER.ELF
 	copy "build\bin\XTLOADER.ELF" "Z:\XTOS\XTLOADER.ELF"
 	$(call unmount-test-disk)
 
+# Final binary
 build\bin\XTLOADER.ELF: build\ldr_core\stub.o build\ldr_core\core.o src\ldr_core\link.ld
-	${C_COMPILER} -T @src\ldr_core\link.ld -o @build\bin\XTLOADER.ELF @build\ldr_core\stub.o @build\ldr_core\core.o ${CFLAGS} ${CCFLAGS}
+	${C_COMPILER} -T src\ldr_core\link.ld -o build\bin\XTLOADER.ELF build\ldr_core\stub.o build\ldr_core\core.o ${CFLAGS} ${CCFLAGS}
 
+# Assembly stub
 build\ldr_core\stub.o: src\ldr_core\stub.s
-	${C_ASSEMBLER} @src\ldr_core\stub.s -o @build\ldr_core\stub.o ${CFLAGS} ${CAFLAGS}
-	
-build\ldr_core\core.o: src\ldr_core\core.c src\ldr_core\core.h
-	${C_COMPILER} -c @src\ldr_core\core.c -o @build\ldr_core\core.o ${CFLAGS} ${CCFLAGS}
+	${C_ASSEMBLER} src\ldr_core\stub.s -o build\ldr_core\stub.o ${CFLAGS}
 
-#Utilities
+# C Body
+build\ldr_core\core.o: src\ldr_core\core.c src\ldr_core\core.h
+	${C_COMPILER} -c src\ldr_core\core.c -o build\ldr_core\core.o ${CFLAGS} ${CCFLAGS}
+
+# -- Utilities --
 define mount-test-disk
 	${PASME} mountdisk "${TestDisk}"
 endef
