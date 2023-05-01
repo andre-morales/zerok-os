@@ -2,9 +2,11 @@ package com.andre.pasme;
 
 import com.andre.pasme.transpiler.Transpiler;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,10 +21,10 @@ import java.util.Scanner;
  * <br> Last edit: 30/04/2023
  * 
  * @author André Morales
- * @version 1.0.0
+ * @version 1.1.0
  */
 public class PasmeCLI {
-	public static final String VERSION_STR = "1.0.0";
+	public static final String VERSION_STR = "1.1.0";
 	private static final String ASSEMBLER_CMD = "YASM";	
 	
 	/**
@@ -54,6 +56,8 @@ public class PasmeCLI {
 		case "transpile" -> transpileOrder(orderLine);
 		case "assemble" -> assembleOrder(orderLine);
 		case "burn" -> burnOrder(orderLine);
+		case "mountdisk" -> mountDiskOrder(orderLine);
+		case "unmountdisk" -> unmountDiskOrder(orderLine);
 		default -> throw new CLIException("Unknown order type [" + order + "].");
 		}
 	}
@@ -242,6 +246,91 @@ public class PasmeCLI {
 	}
 	
 	/**
+	 * Mounts a virtual disk file. Requires no switches, only an input argument.
+	 */
+	void mountDiskOrder(String[] order) {
+		String diskPathArg = null;
+		
+		// Interpret order arguments
+		for (int i = 1; i < order.length; i++) {
+			var arg = order[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (diskPathArg != null) {
+					throw new CLIException("Argument " + arg + " specifies a disk but a disk was already provided before.");
+				}
+				
+				diskPathArg = arg;
+			}
+		}
+		
+		if (diskPathArg == null) throw new CLIException("No disk was specified!");
+		
+		try {
+			var absDiskPath = new File(diskPathArg).getCanonicalPath();
+			
+			var script = Files.createTempFile(null, ".dps");
+			var writer = new FileWriter(script.toFile());
+			
+			writer.write("select vdisk file=\"" + absDiskPath + "\"\n");
+			writer.write("attach vdisk");
+			
+			writer.close();
+			
+			int returnCode = execSilently("diskpart", "/s", script.toString());
+			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	/**
+	 * Unmounts a virtual disk file. Requires no switches, only an input argument.
+	 */
+	void unmountDiskOrder(String[] order) {
+		String diskPathArg = null;
+		
+		// Interpret order arguments
+		for (int i = 1; i < order.length; i++) {
+			var arg = order[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (diskPathArg != null) {
+					throw new CLIException("Argument " + arg + " specifies a disk but a disk was already provided before.");
+				}
+				
+				diskPathArg = arg;
+			}
+		}
+		
+		if (diskPathArg == null) throw new CLIException("No disk was specified!");
+		
+		try {
+			var absDiskPath = new File(diskPathArg).getCanonicalPath();
+			
+			var script = Files.createTempFile(null, ".dps");
+			var scriptFile = script.toFile();
+			try (var writer = new FileWriter(scriptFile)) {
+				writer.write("select vdisk file=\"" + absDiskPath + "\"\n");
+				writer.write("detach vdisk");
+			}
+			
+			int returnCode = execSilently("diskpart", "/s", script.toString());
+			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	/**
 	 * Prints the CLI help text on the console.
 	 * 
 	 * @param orderLine Ignored as of this version.
@@ -257,7 +346,7 @@ public class PasmeCLI {
 			}
 		}
 	}
-	
+		
 	/** Prints the Pasme header with version. */
 	void printHeader() {
 		System.out.println("-- Pasme Version " + VERSION_STR);
@@ -300,6 +389,34 @@ public class PasmeCLI {
 				System.out.print((char) c);
 			}
 
+			return returnCode;
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	/**
+	 * Runs a program with optional CLI arguments. This function only returns when the
+	 * process has finished running completely.
+	 * 
+	 * @param cmd The program command followed by its arguments.
+	 * @return The return code of the program.
+	 */
+	static int execSilently(String... cmd) {
+		try {
+			Process proc;
+			
+			// Build the process and start it. If the program command couldn't be found, throw a dedicated exception.
+			try {
+				var procBuilder = new ProcessBuilder(cmd);
+				procBuilder.redirectErrorStream(true);
+				proc = procBuilder.start();
+			} catch(IOException e){
+				throw new ProgramNotFoundException(e);
+			}
+						
+			// After the program is done running, drain the rest of the output.
+			int returnCode = proc.waitFor();
 			return returnCode;
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);

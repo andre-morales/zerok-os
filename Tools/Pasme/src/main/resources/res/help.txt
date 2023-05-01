@@ -1,3 +1,5 @@
+This tool contains the Pasme transpiler and many utilities that aid in OS
+development.
 
 [Syntax]
 pasme <orderType> [arguments/switches]
@@ -22,6 +24,12 @@ burn <input>: Writes <input> file into another file, with configurable offsets
   -length <number>: How many bytes of the input should be written. If not
     specified, the whole input will be written into the destination.
 
+mountdisk <disk>: Mounts a virtual disk. On Windows, this command invokes the
+  diskpart system utility and requires elevated privileges. 
+
+unmountdisk <disk>: Unmounts a virtual disk. On Windows, this command invokes the
+  diskpart system utility and requires elevated privileges.
+
 help: Prints this help text.
 
 [Examples]
@@ -33,6 +41,3 @@ pasme assemble assembly.asm -to boot.img
 
 # Overwrites the first 512 bytes of disk.vhd with boot.img
 pasme burn boot.img -to disk.vhd -srcOff 0x0 -dstOff 0x0 -length 512
-
-
-
