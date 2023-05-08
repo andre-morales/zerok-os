@@ -3,15 +3,12 @@ package com.andre.pasme.transpiler;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * The Pasme transpiler itself. Here's an example on how to use it:
@@ -30,6 +27,8 @@ import java.util.function.Function;
  */
 public class Transpiler {
 	static final Map<String, Integer> VARIABLES_SIZES = VariableTypes16.get();
+	static final String RODATA_SECTION_MARKER = "@rodata:";
+	static final String BSS_SECTION_MARKER = "@data:";
 	
 	/** Command line defines */
 	public Map<String, String> defines;   
@@ -41,10 +40,13 @@ public class Transpiler {
 	Map<String, String> definedConstants;       
 	
 	/** Constants defined with ."" (read-only data) */
-	List<String> binaryConstants;    
+	List<String> rodataStrings;    
+	boolean undumpedRodataSymbols;
 	
-	/** Global variables (data) */
-	List<Pair<String, Integer>> globalVars; 
+	/** Uninitialized BSS variables.
+	 * This is a list of the symbol name and its size. */
+	List<Pair<String, Integer>> bssSymbols; 
+	boolean undumpedBssSymbols;
 	
 	/* Stack variables and organization */
 	LinkedHashMap<String, Integer> stackVars, stackArgs;         
@@ -57,166 +59,74 @@ public class Transpiler {
 	
 	public Transpiler(){
 		defines = new HashMap<>();
-		definedConstants = new HashMap<>();
-		binaryConstants = new ArrayList<>();
-		globalVars = new ArrayList<>();
+		rodataStrings = new ArrayList<>();
+		bssSymbols = new ArrayList<>();
 		stackVars = new LinkedHashMap<>();
 		stackArgs = new LinkedHashMap<>();
-		
 	}
 	
 	public void transpile(File inputFile, File outputFile){
-		binaryConstants.clear();
-		definedConstants.clear();
-		definedConstants.putAll(defines);
-		
-		boolean foundDataSection = false;
-		boolean foundRODataSection = false;
-		
-		Writer out;
-
 		this.inputFile = inputFile.toPath();
-		try {
-			out = new FileWriter(outputFile);
-			var lineBuffer = Files.readAllLines(this.inputFile);
 
-			var ifBlock = false;
-			var ifBlockTrue = false;
-			for (int li = 0; li < lineBuffer.size(); li++) {
-				String line = lineBuffer.get(li);
-				String tline = line.trim();
-				if (ifBlock) {
-					if (tline.equals("#endif")) {
-						ifBlock = false;
-						continue;
-					} else if (tline.equals("#else")) {
-						ifBlockTrue = !ifBlockTrue;
-						continue;
-					} else if (!ifBlockTrue) {
-						continue;
-					}
-				}
-				
-				if (tline.startsWith("#include ")) {
-					out.write("; -- " + line + "--\n");
-					var str = Str.remainingAfter(line, "#include").trim();
-					
-					var result = solveInclude(str);
-					lineBuffer.addAll(li + 1, result);
-				} else if (tline.startsWith("#define ")) {
-					var def = Str.remainingAfter(line, "#define ").split(" ", 2);
-					definedConstants.put(def[0], def[1]);
-				} else if (tline.startsWith("#ifdef ")) {
-					var def = Str.remainingAfter(line, "#ifdef ");
-					ifBlock = true;
-					ifBlockTrue = "1".equals(definedConstants.get(def));
-				} else if (tline.startsWith("#ifndef ")) {
-					var def = Str.remainingAfter(line, "#ifndef ");
-					ifBlock = true;
-					ifBlockTrue = !("1".equals(definedConstants.get(def)));
-				} else if (tline.startsWith("@rodata:")) {
-					foundRODataSection = true;
-					out.write(line);
-					out.write('\n');
+		rodataStrings.clear();
+		definedConstants = new HashMap<>(defines);
 
-					for (int i = 0; i < binaryConstants.size();) {
-						var string = binaryConstants.get(i++);
-
-						out.write("\t.string" + i + ": db " + getConstantString(string) + "\n");
-					}
-				} else if (tline.startsWith("@data:")) {
-					foundDataSection = true;
-					out.write(line);
-					out.write('\n');
-					dumpDataSection(out);
-				} else if (tline.startsWith("var ")) {
-					var field = Str.remainingAfter(tline, "var ");
-					var pair = getVariable(field);
-					globalVars.add(pair);
-
-				} else if (tline.startsWith("farg ")) {
-					var field = Str.remainingAfter(tline, "farg ");
-					reserveStackArg(field);
-				} else if(tline.startsWith("_clstack()")){
-					stackVars.clear();
-					stackArgs.clear();
-					currentStackVarsSize = 0;
-					currentStackArgsSize = 0;
-				} else {
-					var statements = splitLineIntoStatements(line);
-
-					for (var stat : statements) {
-						var tr_stat = stat.trim();
-						if (!tr_stat.startsWith(";")) {
-							stat = processStatement(stat, tr_stat);
-						}
-						
-						if(stat != null){
-							out.write(stat);
-							out.write('\n');
-						}
-					}
-				}
-			}
-			out.close();
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
+		var lines = readLines(inputFile);
+		lines = Preprocessor.pass(this, lines);
 		
-		if(!foundDataSection && !globalVars.isEmpty()) System.out.println("Warning: Global variables were defined but no @data section defined.");
-		if(!foundRODataSection && !binaryConstants.isEmpty()) System.out.println("Warning: Constant strings were defined but no @rodata section defined.");
-	}
+		var outLines = new ArrayList<Line>();
+		
+		for (int li = 0; li < lines.size(); li++) {
+			var line = lines.get(li);
+			var str = line.content;
+			var tstr = str.trim();
 
-	void dumpDataSection(Writer out) throws IOException {
-		for (var variable : globalVars) {
-			int size = variable.value;
-			out.write("\t" + variable.key + ": ");
-
-			if(size == 0){
-				out.write("\n");
+			if (tstr.startsWith(RODATA_SECTION_MARKER)) {
+				undumpedRodataSymbols = false;
+				
+				outLines.add(line);
+				dumpSectionROData(line, outLines);
 				continue;
 			}
-			//out.write("times " + size + " db 0\n");
-			out.write("resb " + size + "\n");
-		}
-	}
-	
-	List<String> solveInclude(String str){
-		Path filePath = null;
-		if(str.startsWith("<") && str.endsWith(">")){
-			var path = Str.untilFirstMatch(str, 1, ">");
-			for(String include : includePaths){
-				var res = new File(include, path);
-				if(res.exists()){
-					filePath = res.toPath();
-					break;
+			
+			if (tstr.startsWith(BSS_SECTION_MARKER)) {
+				undumpedBssSymbols = false;
+				
+				outLines.add(line);
+				dumpSectionBSS(line, outLines);
+				continue;
+			}
+			
+			var statements = splitAndCleanLine(line);
+			
+			for (var stat : statements) {
+				var result = processStatement(stat);
+				if (result != null) {
+					outLines.addAll(result);
 				}
 			}
-		} else {
-			filePath = inputFile.resolveSibling(str);
 		}
 
-		try {
-			return Files.readAllLines(filePath);
-		} catch(IOException | NullPointerException ex ){
-			throw new TranspilerException("Include file '" + str + "' not found.");
-		}
+		if(undumpedBssSymbols) throw new TranspilerException("Global variables were defined but no @data section defined.");
+		if(undumpedRodataSymbols) throw new TranspilerException("Constant strings were defined but no @rodata section defined.");
+		
+		writeLines(outLines, outputFile);
 	}
 	
 	/**
 	 * Processes a line of code and turns it into multiple ordered statements. 
-	 * This function also handle folding brackets. */
-	List<String> splitLineIntoStatements(String line) {
-		var statements = new ArrayList<String>();
+	 * This function also handles folding brackets. */
+	List<Line> splitAndCleanLine(Line line) {
+		var lines = new ArrayList<Line>();
 
-		var onQuotes = 0; // 0 = Not inside quotes, 1 = Inside single quotes, 2 = Inside double quotes.
-		var onColonComment = false;
-		var statementBuffer = new StringBuilder();
-				
-		var chars = line.toCharArray();
+		char onQuotes = 0;
+		var statement = new StringBuilder();
+	
 		if(onMultiLineComment){	
-			statementBuffer.append(';');
+			statement.append(';');
 		}
+		
+		var chars = line.content.toCharArray();
 		for (int i = 0; i < chars.length; i++) {
 			char c = chars[i];
 			char nc = (i < chars.length - 1)?chars[i + 1]:0;
@@ -226,65 +136,160 @@ public class Transpiler {
 					onMultiLineComment = false;
 					i++;
 				} else {
-					statementBuffer.append(c);
+					statement.append(c);
 				}
-			} else if (onColonComment) {
-				statementBuffer.append(c);
-			} else if (onQuotes == 1) {
-				if (c == '\'') {
-					onQuotes = 0;
-				}
+				continue;
+			}
+			
+			if (onQuotes != 0) {
+				if (onQuotes == c) onQuotes = 0;
 
-				statementBuffer.append(c);
-			} else if (onQuotes == 2) {
-				if (c == '"') {
-					onQuotes = 0;
-				}
-
-				statementBuffer.append(c);
-			} else if(c == '/' && nc == '*'){
+				statement.append(c);
+				continue;
+			}
+			
+			if(c == '/' && nc == '*'){
 				onMultiLineComment = true;
-				statementBuffer.append(";");
+				statement.append(";");
 				i++;
-			} else {
-				switch (c) {
-					case '"':
-						onQuotes = 2;
-
-						statementBuffer.append(c);
-						break;
-					case '\'':
-						onQuotes = 1;
-
-						statementBuffer.append(c);
-						break;
-					case '|':
-						statements.add(statementBuffer.toString());
-						statementBuffer = new StringBuilder();
-						onQuotes = 0;
-						break;
-					case ';':
-						onColonComment = true;
-						statementBuffer.append(c);
-						break;
-					default:
-						statementBuffer.append(c);
-						break;
-					case '{':
-					case '}':
-
+				continue;
+			}
+			
+			switch (c) {
+				// Style brackets: do not emit.
+				case '{', '}' -> {}
+				
+				// Quoted string
+				case '\'', '"' -> {
+					onQuotes = c;
+					statement.append(c);
 				}
+				
+				// Statement splitter: do not emit
+				case '|' -> {
+					lines.add(new Line(statement.toString(), line.number));
+					statement = new StringBuilder();
+				}
+				
+				// Line comment: just append the rest of the line and
+				// quit out of the loop
+				case ';' -> {
+					statement.append(line.content.substring(i));
+					i = Integer.MAX_VALUE - 1;
+				}
+				
+				default -> statement.append(c);
 			}
 		}
+		
+		lines.add(new Line(statement.toString(), line.number));
+		return lines;
+	}
+	
+	List<Line> readLines(File file) {
+		try {
+			return Preprocessor.readAllLines(file);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	void writeLines(List<Line> lines, File outputFile) {
+		try (var out = new FileWriter(outputFile)) {
+			for (var line : lines) {
+				out.write(line.content);
+				if (!line.content.endsWith("\n")) out.write("\n");
+			}
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	void dumpSectionROData(Line cause, List<Line> lines) {
+		undumpedRodataSymbols = false;
+		
+		for (int i = 0; i < rodataStrings.size();) {
+			var string = rodataStrings.get(i++);
+			
+			var r = "\t.string" + i + ": db " + getConstantString(string) + "\n";
+			lines.add(new Line(r, cause.number));
+		}
+	}
+	
+	void dumpSectionBSS(Line cause, List<Line> lines) {
+		undumpedBssSymbols = false;
+		
+		for (var variable : bssSymbols) {
+			int size = variable.value;
+			
+			var r = "\t" + variable.key + ": ";
 
-		statements.add(statementBuffer.toString());
-		return statements;
+			if(size == 0){
+				r += "\n";
+			} else {
+				r += "resb " + size + "\n";
+			}
+			
+			lines.add(new Line(r, cause.number));
+		}
 	}
 	
 	/** Processes the statement given and outputs a result to be placed in the file.
 	 *  @param stat pure statement after splitting.
 	 *  @param tr_stat trimmed statement to be used for logic. */
-	String processStatement(String stat, String tr_stat) {
+	List<Line> processStatement(Line line) {
+		var stat = line.content;
+		var tr_stat = line.content.trim();
+		
+		if (tr_stat.startsWith("var ")) {
+			var field = Str.remainingAfter(tr_stat, "var ");
+			var pair = getVariable(field);
+			bssSymbols.add(pair);
+			undumpedBssSymbols = true;
+			return null;
+		}
+		
+		if (tr_stat.startsWith("farg ")) {
+			var field = Str.remainingAfter(tr_stat, "farg ");
+			reserveStackArg(field);
+			return null;
+		}
+		
+		if (tr_stat.startsWith("ENTERFN")) {
+			var emit = new ArrayList<Line>();
+			emit.add(new Line("push bp", line));
+			emit.add(new Line("mov bp, sp", line));
+			if (currentStackVarsSize > 0) {
+				emit.add(new Line("sub bp, " + currentStackVarsSize, line));
+			}
+			return emit;
+		}
+		
+		if (tr_stat.startsWith("LEAVEFN")) {
+			var emit = new ArrayList<Line>();
+			emit.add(new Line("mov sp, bp", line));
+			emit.add(new Line("pop bp", line));
+			if (currentStackArgsSize > 0) {
+				emit.add(new Line("ret " + currentStackArgsSize, line));
+			} else {
+				emit.add(new Line("ret" , line));
+			}
+			
+			stackVars.clear();
+			stackArgs.clear();
+			currentStackVarsSize = 0;
+			currentStackArgsSize = 0;			
+			return emit;
+		}
+		
+		if(tr_stat.startsWith("CLSTACK")){
+			stackVars.clear();
+			stackArgs.clear();
+			currentStackVarsSize = 0;
+			currentStackArgsSize = 0;
+			return null;
+		} 
+		
 		if (tr_stat.startsWith("lvar ")) {
 			var field = Str.remainingAfter(stat, "lvar ");
 			reserveStackVar(field);
@@ -297,14 +302,20 @@ public class Transpiler {
 		for (int i = 0; i < chars.length; i++) {
 			char c = chars[i];
 			char nc = ((i + 1 < chars.length) ? chars[i + 1] : '\0');
-				
+			
+			// If we hit a comment, just spit the rest of it and quit out of the loop
+			if (c == ';') {
+				statementBuffer.append(stat.substring(i));
+				break;
+			}
+			
 			if (c == '.') {
 				if (Str.isQuote(nc)) {
 					var quotedStr = Str.untilFirstMatch(stat, i + 2, Character.toString(nc));
-					var nstr = replaceVars(quotedStr, (name) -> definedConstants.get(name)); 
-					binaryConstants.add(nc + nstr + nc);
-					statementBuffer.append("@rodata.string").append(binaryConstants.size());
+					rodataStrings.add(nc + quotedStr + nc);
+					statementBuffer.append("@rodata.string").append(rodataStrings.size());
 					i += quotedStr.length() + 2;
+					undumpedRodataSymbols = true;
 					continue;
 				}
 			} else if (Str.isQuote(c)) {
@@ -338,35 +349,15 @@ public class Transpiler {
 						i += varname.length();
 						continue;
 					}
-					
-					
 				}
 			}
 			statementBuffer.append(c);
 		}
-		return statementBuffer.toString();
-	}
-	
-	/* Given an input, invokes the callback everytime it finds a ${} match.
-	The callback must return a string to be placed inside the brackets. */
-	static String replaceVars(String input, Function<String, String> callback){
-		var result = new StringBuilder();
-		var chars = input.toCharArray();
-		for(int i = 0; i < chars.length; i++){
-			char c = chars[i];
-			char nc = (i < chars.length - 1)?chars[i + 1]:0;
-			
-			if(c == '$' && nc == '{'){
-				String varname = Str.untilFirstMatch(input, i + 2, "}");
-				result.append(callback.apply(varname));
-				i += varname.length() + 2;
-				continue;
-			}
-			result.append(c);
-		}
-		return result.toString();
-	}
 		
+		line.content = statementBuffer.toString();
+		return List.of(line);
+	}
+			
 	static String getConstantString(String str) {
 		if (str.startsWith("\"")) {
 			str = str

@@ -13,4 +13,7 @@ public class TranspilerException extends RuntimeException {
 		super(str);
 	}
 
+	public TranspilerException(String str, Throwable cause) {
+		super(str, cause);
+	}
 }

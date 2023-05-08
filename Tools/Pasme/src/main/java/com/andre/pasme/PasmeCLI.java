@@ -24,7 +24,7 @@ import java.util.Scanner;
  * @version 1.1.0
  */
 public class PasmeCLI {
-	public static final String VERSION_STR = "1.1.0";
+	public static final String VERSION_STR = "1.2.0";
 	private static final String ASSEMBLER_CMD = "YASM";	
 	
 	/**
