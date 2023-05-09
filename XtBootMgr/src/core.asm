@@ -16,7 +16,7 @@
 ; -- [0x1B00 - 0x1C00] Partition array
 ; -- [0x2000] Generic stuff buffer
 
-#include version_h.asm
+#include "version_h.asm"
 #include <stdconio_h.asm>
 
 var short cursor
@@ -380,7 +380,7 @@ DrawMenu: {
 	push bp
 	mov bp, sp
 
-	_clstack()
+	CLSTACK
 	lvar short sectorsPerMB
 	sub sp, $stack_vars_size
 	

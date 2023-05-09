@@ -41,7 +41,48 @@ putch: {
 	pop bx | pop ax
 ret }
 
-#ifndef STDCONIO_MINIMAL
+#ifdef STDCONIO_MINIMAL
+
+printHexNum: {
+	push ax
+	push cx
+
+	mov cx, 16
+	call .printNumber
+	
+	pop cx
+	pop ax
+ret
+	
+	.printNumber:
+		push ax
+		push dx
+		
+		xor dx, dx
+		div cx            ; AX = Quotient, DX = Remainder
+		test ax, ax       ; Is quotient zero?
+		
+		jz .printDigit    ; Yes, just print the digit in the remainder.
+		call .printNumber ; No, recurse and divide the quotient by 16 again. Then print the digit in the remainder.
+		
+		.printDigit:
+		mov al, dl
+		add al, '0'
+		cmp al, '9'
+		jle .putc
+		
+		add al, 7
+		
+		.putc:
+		call putch
+	
+		pop dx
+		pop ax
+    ret
+}
+
+#else
+
 putnch: {
 	xor ch, ch
 	
@@ -64,18 +105,13 @@ WaitKey: {
 ret }
 
 printHexNum: {
-	push bp
-	mov bp, sp
-	
-	_clstack()
+	CLSTACK
 	farg word number
 	lvar char[8] str
-	sub sp, $stack_vars_size
+	ENTERFN
 	
-	push ds
-	push es
-	push si
-	push di
+	push ds | push es
+	push si | push di
 	
 	mov di, ss
 	mov es, di
@@ -88,21 +124,16 @@ printHexNum: {
 	mov si, di
 	call print
 	
-	pop di
-	pop si
-	pop es
-	pop ds
-	mov sp, bp
-	pop bp
-ret $stack_args_size }
+	pop di | pop si
+	pop es | pop ds
+		
+	LEAVEFN
+}
 
 printDecNum: {
-	push bp
-	mov bp, sp
-	
-	_clstack()
+	CLSTACK
 	lvar char[6] str
-	sub sp, $stack_vars_size
+	ENTERFN
 	
 	push ds
 	push es
@@ -123,9 +154,9 @@ printDecNum: {
 	pop si
 	pop es
 	pop ds
-	mov sp, bp
-	pop bp
-ret }
+	
+	LEAVEFN
+}
 
 ; Turns a 16-bit integer into a string.
 ; The number is in the AX register.
@@ -164,7 +195,6 @@ ret
 		pop ax
     ret	
 }
-
 
 hexNumToStr: {
 	push ax
@@ -208,42 +238,4 @@ ret
     ret
 }
 
-#else
-printHexNum: {
-	push ax
-	push cx
-
-	mov cx, 16
-	call .printNumber
-	
-	pop cx
-	pop ax
-ret
-	
-	.printNumber:
-		push ax
-		push dx
-		
-		xor dx, dx
-		div cx            ; AX = Quotient, DX = Remainder
-		test ax, ax       ; Is quotient zero?
-		
-		jz .printDigit    ; Yes, just print the digit in the remainder.
-		call .printNumber ; No, recurse and divide the quotient by 16 again. Then print the digit in the remainder.
-		
-		.printDigit:
-		mov al, dl
-		add al, '0'
-		cmp al, '9'
-		jle .putc
-		
-		add al, 7
-		
-		.putc:
-		call putch
-	
-		pop dx
-		pop ax
-    ret
-}
 #endif

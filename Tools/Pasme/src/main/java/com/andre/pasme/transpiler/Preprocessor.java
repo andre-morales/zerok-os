@@ -119,10 +119,8 @@ public class Preprocessor {
 					continue;
 				}
 
-				if (strTr.startsWith("#include")) {
-					var includeFile = Str.remainingAfter(str, "#include").trim();
-
-					var result = solveInclude(tr, includeFile);
+				if (strTr.startsWith("#include ")) {
+					var result = solveInclude(tr, str);
 					var includedLines = result.stream()
 							.map((String v) -> new Line(v, lineN))
 							.toList();
@@ -139,7 +137,9 @@ public class Preprocessor {
 		return emit;
 	}
 	
-	static List<String> solveInclude(Transpiler tr, String str){
+	static List<String> solveInclude(Transpiler tr, String line){
+		var str = Str.remainingAfter(line, "#include ").trim();
+		
 		Path filePath = null;
 		if(str.startsWith("<") && str.endsWith(">")){
 			var path = Str.untilFirstMatch(str, 1, ">");
@@ -150,8 +150,11 @@ public class Preprocessor {
 					break;
 				}
 			}
+		} else if(str.startsWith("\"") && str.endsWith("\"")){
+			var path = Str.untilFirstMatch(str, 1, "\"");
+			filePath = tr.inputFile.resolveSibling(path);
 		} else {
-			filePath = tr.inputFile.resolveSibling(str);
+			throw new TranspilerException("#include statements shoud be either: '#include <file>' or '#include \"file\"'");
 		}
 
 		try {

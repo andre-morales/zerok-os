@@ -8,13 +8,13 @@
    Modified: 25/01/2022 */
 
 ; Physical Map
-; -- [ 500] Stack
+; -- [ 500] GDT / Stack
 ; -- [ 700] Stage 3 (us)
 ; -- [1200] FAT16 Cluster Buffer
 ; -- [2000] Stage 4 file will be loaded here
 ; -- [3000] Stage 4 code starts here
 
-#include version_h.asm
+#include "version_h.pah"
 #include <stdconio_h.asm>
 
 %define FAT16_CLUSTER_BUFFER_ADDR 0x1200
@@ -34,43 +34,43 @@ var void XtLoaderStruct
 var void XtLoaderStruct.end
 
 SECTION stack vstart=0x500 progbits
+
 ; Global descriptor table imported by LGDT instruction
 GDT: {
 	; Entry 0 must be null
 	dq 0     
 
 	; Entry 1 (CS)
-	dw 0xFFFF ; Limit (0:15)
-	dw 0      ; Base (0:15)
-	db 0      ; Base (16:23)
-	db 10011010b
-	db 11001111b
-	db 0
+	dw 0xFFFF    ; Limit (0:15)
+	dw 0         ; Base (0:15)
+	db 0         ; Base (16:23)
+	db 10011010b ; Flags
+	db 11001111b ; Flags
+	db 0		 ; Base (24:31)
 	
 	; Entry 2 (DS)
-	dw 0xFFFF ; Limit (0:15)
-	dw 0      ; Base (0:15)
-	db 0      ; Base (16:23)
-	db 10010010b
-	db 11001111b
-	db 0
-GDT_End:
+	dw 0xFFFF 	 ; Limit (0:15)
+	dw 0      	 ; Base (0:15)
+	db 0      	 ; Base (16:23)
+	db 10010010b ; Flags
+	db 11001111b ; Flags
+	db 0		 ; Base (24:31)
+.End: }
 
-GDT_Desc:
-	dw GDT_End - GDT
-	dd GDT
-
-GDT_Desc_End:
+GDT_Desc: {
+	dw GDT.End - GDT ; Length
+	dd GDT			 ; Pointer
 }
+
 times 512-($-$$) db 0x00 ; Fill the reserved stack section
 
 SECTION .text vstart=0x700 follows=stack
-jmp Start
+jmp start
 
 dw Drive ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
 dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
 
-Start: {
+start: {
 	mov sp, 0x6F0
 
 	Print(."\N-- XtLoader Head ${VERSION}")
@@ -87,7 +87,6 @@ Start: {
 	call LoadELF
 	Print(."\NExecutable loaded.")
 
-	;call SetupPagingStructures
 	call GetInfo
 	
 	Print(."\NPress any key to execute XtLdr32.")
@@ -106,8 +105,7 @@ ret }
 
 GetInfo: {
 	; Get current video mode
-	mov ah, 0Fh
-	int 10h
+	mov ah, 0Fh | int 10h
 	mov byte [vidmode.id], al
 	mov byte [vidmode.columns], ah
 	
@@ -167,8 +165,8 @@ ret }
 
 LoadELFHeader: {
 	; Make sure the file is an ELF file in the first place.
-	cmp word [bx + 0], 0x457F | jne NotAnElf
-	cmp word [bx + 2], 0x464C | jne NotAnElf
+	cmp dword [bx + 0], 0x464C_457F
+	jne NotAnElf
 	
 	mov eax, [bx + 24]
 	mov [ELF.entryPoint], eax
@@ -218,13 +216,16 @@ LoadSegment: {
 	add si, 4
 	movsw
 	movsw
+	
 	; p_vaddr
 	movsw
 	movsw
+	
 	; p_filesz (size of this segment in the file)
 	add si, 4
 	movsw
 	movsw
+	
 	; p_memsz
 	movsw
 	movsw
@@ -258,6 +259,7 @@ NotAnElf: {
 	Print(."\NNot an ELF file!");
 	jmp Halt
 }
+
 Halt: {
 	Print(."\NHalted.\N")
 	cli | hlt
@@ -279,5 +281,6 @@ FileNotFoundOnDir: {
 
 @rodata:
 
+; Variables declared will appear here
 SECTION .bss
 @data:

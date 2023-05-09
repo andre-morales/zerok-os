@@ -12,7 +12,7 @@ if "%1"=="boot" (
 	REM Compile boot.csm and save the compiled binary.
 	REM Write 440 bytes of the compiled binary into the beginning of the specified test disk.
 	
-	%Pasme% transpile src/boot.asm -I ../Libs/casm -to build/asm/boot.asm
+	%Pasme% transpile src/boot.pa -I ../Libs/casm -to build/asm/boot.asm
 	%Pasme% assemble  build/asm/boot.asm -to build/bin/boot.img
 	%Pasme% burn      build/bin/boot.img -to %Disk% -length 440
 ) else if "%1"=="core" (

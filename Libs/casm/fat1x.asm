@@ -1,11 +1,13 @@
-/* FAT16 reading lib
-   Author:   André Morales 
-   Version:  0.33
-   Creation: 02/01/2021
-   Modified: 05/02/2022 */
+/* FAT12/16 reading lib
+ *
+ * Author:   André Morales 
+ * Version:  0.33
+ * Creation: 02/01/2021
+ * Modified: 05/02/2022 */
 
-var void FATFS.BPB
+
 var void FATFS
+	var void .BPB
 	var short .bytesPerLogicalSector
 	var short .logicalSectorsPerCluster
 	var short .reservedLogicalSectors
@@ -35,14 +37,16 @@ var void .vars_end
 FATFS.Initialize: {
 	push bp
 	mov bp, sp
-	_clstack()
+	
+	CLSTACK
+	farg byte* firstSectorPtr
 	
 	; Read all important stuff from BPB
+	mov si, [$firstSectorPtr]	
 	add si, 0x0B
 	mov di, FATFS.BPB
 	
 	xor ah, ah
-	
 	movsw         ; [0B] Bytes per logical sector
 	lodsb | stosw ; [0D] Logical sectors per cluster
 	movsw         ; [0E] Reserved logical sectors
@@ -50,7 +54,6 @@ FATFS.Initialize: {
 	movsw         ; [11] Root Dir. Entries
 	
 	lodsw         ; [13] Total logical sectors
-	
 	call .testClusterCount ; Discover type of FAT     
 	
 	inc si  
@@ -100,7 +103,7 @@ FATFS.Initialize: {
 	
 	mov sp, bp
 	pop bp
-ret
+ret $stack_args_size 
 
 	.testClusterCount: {
 		test ax, ax | jz .halt  ; This is FAT32, and is not supported.
@@ -118,15 +121,12 @@ ret
 }
 
 FATFS.FindFile: {
-	push bp
-	mov bp, sp
-
-	_clstack()
+	CLSTACK
 	lvar char* pathStrPtr     | ; Pointer to the path
-	lvar char[11] currentFile | ; Current file we're searching fore
+	lvar char[11] currentFile | ; Current file we're searching for
 	lvar byte lastFile        | ; Is this the last file and the path walking is over
 	lvar word fileCluster     | ; The cluster of the file/directory we were looking for
-	sub sp, $stack_vars_size
+	ENTERFN
 
 	push di
 
@@ -198,11 +198,11 @@ FATFS.FindFile: {
 	
 	; File not present on this sector.
 	.End:
-	pop di
+	pop di	
 	
 	mov sp, bp
 	pop bp
-ret
+ret $stack_args_size
 
 	.FileNotFoundOnDir:
 		jmp FileNotFoundOnDir
@@ -235,8 +235,7 @@ ret
 		rep stosb
 		
 		.end:
-	ret
-	}
+	ret }
 
 	/* Compares the string at DS:SI with the current file being searched. */
 	FATFS._testFATFileEntry: {
@@ -272,11 +271,9 @@ ret
 
 ; void (short cluster)
 FATFS.ReadCluster: {
-	push bp
-	mov bp, sp
-	
-	_clstack()
+	CLSTACK
 	farg short cluster
+	ENTERFN
 	
 	push word [Drive.bufferPtr]
 	
@@ -323,11 +320,9 @@ ret $stack_args_size }
 
 ; void (short cluster)
 FATFS.ReadClusterChain: {
-	push bp
-	mov bp, sp
-
-	_clstack()
+	CLSTACK
 	farg short cluster
+	ENTERFN
 	
 	push word [Drive.bufferPtr]              ; Save drive buffer pointer
 
@@ -414,11 +409,9 @@ ret $stack_args_size
 }
 
 FATFS._readFATSector: {
-	push bp
-	mov bp, sp
-	
-	_clstack()
+	CLSTACK
 	farg short sector
+	ENTERFN
 	
 	mov ax, [$sector]
 	cwd
@@ -432,8 +425,7 @@ FATFS._readFATSector: {
 	xchg cx, [bx]
 	push dx | push ax
 	call Drive.ReadSector
-	mov [bx], cx
-	
-	mov sp, bp
-	pop bp
-ret $stack_args_size}
+	mov [bx], cx	
+
+	LEAVEFN
+}

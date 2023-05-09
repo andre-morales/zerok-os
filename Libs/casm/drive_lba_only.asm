@@ -6,12 +6,6 @@
 
 var void Drive
 	var byte .id	
-	var void Drive.CHS
-		var short .bytesPerSector
-		var byte .sectorsPerTrack
-		var short .headsPerCylinder
-		var short .sectorsTimesHeads
-		var short .cylinders
 
 	var void Drive.LBA
 		var bool .available
@@ -40,13 +34,16 @@ Drive.Init: {
 ret }
 
 Drive.ReadSector: {
-	CLSTACK
+	push bp
+	mov bp, sp
+	
+	_clstack()
 	farg short sector_l
 	farg short sector_h
 	lvar short addr_cylinder
 	lvar byte addr_sector
 	lvar byte addr_head
-	ENTERFN
+	sub sp, $stack_vars_size
 	
 	push es
 	push di | push si
@@ -60,7 +57,7 @@ Drive.ReadSector: {
 	#endif
 	
 	cmp byte [Drive.LBA.available], 0
-	jnz .LBAtoCHS ; LBA not supported. Try CHS translation.
+	jz Halt ; LBA not supported. Try CHS translation.
 	
 	; -- Reading as LBA --
 	mov ax, [$sector_l] | mov [Drive.readLBA + 0], ax
@@ -71,86 +68,15 @@ Drive.ReadSector: {
 	xor ax, ax
 	jmp .End
 	
-	; -- Reading as CHS (Convert LBA to CHS) --
-	.LBAtoCHS: {		
-		; Calculate cylinder
-		mov dx, [$sector_h] | mov ax, [$sector_l]    ; Get LBA
-		div word [Drive.CHS.sectorsTimesHeads] ; LBA / (HPC * SPT) | DX:AX / (HPC * SPT)
-		mov [$addr_cylinder], ax               ; Save Cylinders
-
-		cmp ax, [Drive.CHS.cylinders] | jle .CHSRead ; Is cylinder number safe?
-		mov ax, 1 | jmp .End ; Error code 1. Cylinder too big.
-		
-		.CHSRead:
-		; Calculate sector
-		mov dx, [$sector_h] | mov ax, [$sector_l]              ; Get LBA
-		xor ch, ch | mov cl, [Drive.CHS.sectorsPerTrack] 
-		div cx                                           ; LBA % SPT + 1 | LBA % CX + 1
-		inc dx
-		mov [$addr_sector], dl
-		
-		; Calculate head
-		xor dx, dx
-		div word [Drive.CHS.headsPerCylinder] ; (LBA / SPT) % HPC # (LBA / CX) % HPC
-		mov [$addr_head], dl
-		
-		; Cylinder
-		mov ax, [$addr_cylinder]
-		mov cl, 8 | rol ax, cl
-		mov cl, 6 | shl al, cl 
-		mov cx, ax
-		
-		or cl, [$addr_sector] ; Sector
-		mov dh, [$addr_head]  ; Head
-		
-		xor bx, bx | mov es, bx
-		mov bx, [Drive.bufferPtr]
-		mov dl, [Drive.id]
-		mov al, 1
-		mov ah, 0x02 | int 13h ; CHS read
-		
-		xor ax, ax
-	}
-	
 	.End:
 	pop ax | pop bx | pop cx | pop dx
 	pop si | pop di
 	pop es
 	
-	LEAVEFN
-}
-
-Drive.CHS.GetProperties: {
-	push es
+	mov sp, bp
+	pop bp
 	
-	mov word [Drive.CHS.bytesPerSector], 512
-	
-	mov dl, [Drive.id]
-	mov ah, 08h | int 13h ; Query drive geometry
-	
-	inc dh
-	xor ah, ah | mov al, dh
-	mov [Drive.CHS.headsPerCylinder], ax
-	
-	mov ax, cx
-	and al, 00111111b
-	mov [Drive.CHS.sectorsPerTrack], al
-	
-	mul dh
-	mov [Drive.CHS.sectorsTimesHeads], ax
-	
-	mov ax, cx ; LLLLLLLL|HHxxxxxx
-	
-	mov cl, 8
-	rol ax, cl ; HHxxxxxx|LLLLLLLL
-	
-	mov cl, 6
-	shr ah, cl ; ------HH|LLLLLLLL
-	inc ax
-	mov [Drive.CHS.cylinders], ax
-	
-	pop es
-ret }
+ret $stack_args_size }
 
 Drive.LBA.GetProperties: {
 	mov dl, [Drive.id]
