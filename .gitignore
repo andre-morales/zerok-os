@@ -3,5 +3,5 @@
 /Tools/GCC/
 
 /XtBootMgr/build/
-/XtOS/Bootloader/build/
+/OS/Bootloader/build/
 /Tools/Pasme/target/

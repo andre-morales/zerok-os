@@ -22,8 +22,8 @@
 %define SECTORS 5
 
 ; Include a few macro definition files
-#include "version_h.asm"
-#include <stdconio_h.asm>
+#include "version.pah"
+#include <common/console.pah>
 
 SECTION .text vstart=0x6000
 
@@ -211,9 +211,9 @@ InitDrive: {
 ret }
 
 ; Include defitions of a few commonly used functions
-#include <stdconio.asm>
-#include <drive.asm>
-#include <fat1x.asm>
+#include <common/console.pa>
+#include <common/drive.pa>
+#include <common/fat1x.pa>
 
 @rodata:
 times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.

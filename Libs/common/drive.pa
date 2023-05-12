@@ -31,11 +31,13 @@ var void Drive.vars_end
 Drive.Init: {
 	push es
 	push ds | pop es
+	
 	mov di, lbaDAPS
 	xor ax, ax
 	mov cx, 8 | rep stosw
 	mov byte [lbaDAPS.size], 16
 	mov word [lbaDAPS.sectors], 1
+	
 	pop es
 ret }
 

@@ -3,25 +3,6 @@
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
 
-/* Prints a string placed in SI */
-print: {
-	push ax
-	push si
-	
-	.char:
-		lodsb
-		test al, al
-		jz .end
-		
-		call putch
-	jmp .char
-		
-	.end:
-	pop si
-	pop ax
-ret }
-
-
 /* Prints a single character that was put into AL */
 putch: {
 	push ax | push bx
@@ -41,9 +22,25 @@ putch: {
 	pop bx | pop ax
 ret }
 
-#ifdef STDCONIO_MINIMAL
+/* Prints a string placed in SI */
+print: {
+	push ax
+	
+	.char:
+		lodsb
+		test al, al
+		jz .end
+		
+		call putch
+	jmp .char
+		
+	.end:
+	pop ax
+ret }
 
-printHexNum: {
+#ifdef CONSOLE_MINIMAL
+
+printHexNum_short: {
 	push ax
 	push cx
 

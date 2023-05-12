@@ -8,10 +8,11 @@ C_ASSEMBLER=../../Tools/GCC/bin/i386-elf-as.exe
 C_COMPILER=../../Tools/GCC/bin/i386-elf-gcc.exe
 
 # -- Flags --
-# Flags for both compiler and assembler
+# Pasme Transpiler flags
+PT_FLAGS=-I ../../Libs
+# Flags for both GCC compiler and assembler
 CFLAGS=
-
-#Flags for just the compiler
+# Flags for just the GCC compiler
 CCFLAGS=-ffreestanding -nostdlib -lgcc
 
 
@@ -27,7 +28,7 @@ boot_head: build/bin/boot_head_lba.img
 	${PASME} burn build/bin/boot_head_lba.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
 
 build/bin/boot_head_lba.img: src/boot_head.pa
-	${PASME} transpile src/boot_head.pa -I ../../Libs/casm -D LBA_AVAILABLE -to build/boot_head_lba.asm
+	${PASME} transpile src/boot_head.pa -D LBA_AVAILABLE -to build/boot_head_lba.asm ${PT_FLAGS}
 	${PASME} assemble  build/boot_head_lba.asm -to build/bin/boot_head_lba.img
 
 # -- Boot Head [CHS] --
@@ -35,7 +36,7 @@ boot_head_chs: build/bin/boot_head_chs.img
 	${PASME} burn build/bin/boot_head_lba.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
 
 build/bin/boot_head_chs.img: src/boot_head.asm
-	${PASME} transpile src/boot_head.asm -I ../../Libs/casm -to build/boot_head_chs.asm
+	${PASME} transpile src/boot_head.asm -to build/boot_head_chs.asm ${PT_FLAGS}
 	${PASME} assemble  build/boot_head_chs.asm -to build/bin/boot_head_chs.img
 
 
@@ -46,7 +47,7 @@ boot_core: build/bin/boot_core.img
 	${PASME} burn build/bin/boot_core.img -to "${TestDisk}" -dstOff ${PartitionStart}+0x200 -length 2560
 
 build/bin/boot_core.img: src/boot_core.pa
-	${PASME} transpile src/boot_core.pa -I ../../Libs/casm -to build/boot_core.asm
+	${PASME} transpile src/boot_core.pa -to build/boot_core.asm ${PT_FLAGS}
 	${PASME} assemble  build/boot_core.asm -to build/bin/boot_core.img
 
 
@@ -59,7 +60,7 @@ ldr_head: build/bin/LDRHEAD.BIN
 	$(call unmount-test-disk)
 
 build/bin/LDRHEAD.BIN: src/xtloader_head.pa
-	${PASME} transpile src/xtloader_head.pa -I ../../Libs/casm -to build/xtloader_head.asm
+	${PASME} transpile src/xtloader_head.pa -to build/xtloader_head.asm ${PT_FLAGS}
 	${PASME} assemble  build/xtloader_head.asm -to build/bin/LDRHEAD.BIN
 
 

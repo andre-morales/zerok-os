@@ -3,22 +3,36 @@
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
 
-%macro Print 1
-	mov si, %1
-	call print
-%endmacro
+#ifdef CONSOLE_MINIMAL
+	%macro Print 1
+		mov si, %1
+		call print
+	%endmacro
 
-%macro Putch 1
-	mov al, %1
-	call putch
-%endmacro
-
-#ifdef STDCONIO_MINIMAL
 	%macro PrintHexNum 1
 		mov ax, %1
-		call printHexNum
+		call printHexNum_short
 	%endmacro
 #else 
+	%macro Putch 1
+		push ax
+		mov al, %1
+		call putch
+		pop ax
+	%endmacro
+
+	%macro Print 1
+		push si
+		mov si, %1
+		call print
+		pop si
+	%endmacro
+
+	%macro PrintHexNum 1
+		push %1
+		call printHexNum
+	%endmacro
+	
 	%macro Putnch 2
 		mov al, %1
 		mov cl, %2
@@ -39,11 +53,6 @@
 	%macro ClearScreen 1
 		mov ax, %1
 		call clearScreen
-	%endmacro
-	
-	%macro PrintHexNum 1
-		push %1
-		call printHexNum
-	%endmacro
+	%endmacro	
 #endif
 

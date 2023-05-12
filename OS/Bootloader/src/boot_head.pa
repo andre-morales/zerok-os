@@ -1,4 +1,4 @@
-/* Boot Headd (Stage 1)
+/* Boot Head (Stage 1)
  * Author:   André Morales 
  * Version:  0.7.0
  * Creation: 07/10/2020
@@ -9,11 +9,11 @@
 [CPU 8086]
 [ORG 0x7C00]
 
-#include <stdconio_h.asm>
-#include "version_h.asm"
+#include "version.pah"
+#include <common/console.pah>
 
 ; -- [...    - 0x06FF] Stack
-; -- [0x6000 -   ... ] Whfere Stage 2 will be loaded.
+; -- [0x6000 -   ... ] Where Stage 2 will be loaded.
 ; -- [0x7600 -    #  ] Loaded MBR.
 ; -- [0x7800 -    #  ] Test fVBR/EBR.
 ; -- [0x7A00 -    #  ] Test VBR from EBR.
@@ -87,7 +87,7 @@ TryDrive: {
 	call Drive.ReadSector
 
 	; Point SI to the first entry in the MBR
-	mov si, 0x7600 + 0x1BE
+	mov si, (0x7600+0x1BE)
 	mov cx, 4
 	
 	; Load and compare VBRs in 0x7800
@@ -274,15 +274,20 @@ Drive:
 	
 	; readSector(DX:BX lba)
 	.ReadSector: {
-		push bp
-		mov bp, sp
+		CLSTACK
+		ENTERFN
 		
 		push bx | push dx
+		
 		push es | push di
 		push si | push cx
 		
-		mov ax, [bp - 4] | mov [Drive.readLBA + 0], ax
-		mov ax, [bp - 2] | mov [Drive.readLBA + 2], ax
+		mov ax, [bp - 4]
+		mov [Drive.readLBA + 0], ax
+		
+		mov ax, [bp - 2]
+		mov [Drive.readLBA + 2], ax
+
 		mov dl, [Drive.id]
 		mov si, lbaDAPS
 				
@@ -291,11 +296,11 @@ Drive:
 
 		pop cx | pop si
 		pop di | pop es
-		pop dx | pop bx
 		
-		mov sp, bp
-		pop bp
-	ret }
+		pop dx | pop bx
+
+		LEAVEFN
+	}
 #else
 	var void Drive.CHSaddr
 	var short Drive.headsPerCylinder
@@ -343,6 +348,8 @@ Drive:
 		mov bp, sp
 		
 		CLSTACK
+		farg short LBA_L
+		farg short LBA_H
 		lvar short CYLINDER
 		lvar byte SECTOR
 		lvar byte HEAD
@@ -354,8 +361,9 @@ Drive:
 			
 		; -- Reading as CHS (Convert LBA to CHS) --
 		; Calculate cylinder
-		mov dx, [bp - 6] | mov ax, [bp - 8]  ; Get LBA
-		div word [Drive.sectorsTimesHeads]   ; LBA / (HPC * SPT) | DX:AX / (HPC * SPT)
+		mov dx, [$LBA_H]					 ; Get LBA
+		mov ax, [$LBA_L]  
+		div word [Drive.sectorsTimesHeads]   ; LBA / (HPC * SPT)
 		mov [$CYLINDER], ax                  ; Save Cylinders
 		
 		cmp ax, [Drive.cylinders] | jg haltm ; Is cylinder number safe (out of bounds)?

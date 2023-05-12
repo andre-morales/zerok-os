@@ -16,8 +16,8 @@
 ; -- [0x1B00 - 0x1C00] Partition array
 ; -- [0x2000] Generic stuff buffer
 
-#include "version_h.asm"
-#include <stdconio_h.asm>
+#include "version.pah"
+#include <common/console.pah>
 
 var short cursor
 var byte partitionMapSize
@@ -39,7 +39,7 @@ Start: {
 	sti                                ; Reenable interrupts that were disable back at stage 1.
 
 	Print(."\N\n--- Xt Generic Boot Manager ---")
-	Print(."\NVersion: ${VERSION}")
+	Print(."\NVersion: $#VERSION#")
 	
 	; Set up division error int handler.
 	mov word [es:0000], DivisionErrorHandler
@@ -319,9 +319,10 @@ ret }
 PrintCurrentVideoMode: {
 	mov ah, 0Fh | int 10h
 	push ax
-	Print(."\NCurrent video mode: 0x")
-	xor ah, ah
 	
+	Print(."\NCurrent video mode: 0x")
+	
+	xor ah, ah
 	PrintHexNum(ax)
 	
 	Print(."\NColumns: ")
@@ -377,12 +378,9 @@ GetDriveGeometry: {
 ret }
 	
 DrawMenu: {
-	push bp
-	mov bp, sp
-
 	CLSTACK
 	lvar short sectorsPerMB
-	sub sp, $stack_vars_size
+	ENTERFN
 	
 	mov word [$sectorsPerMB], 2048
 	push ds
@@ -669,8 +667,8 @@ setCursor: {
 ret }
 
 /* Code includes */
-#include <drive.asm>
-#include <stdconio.asm>
+#include <common/drive.pa>
+#include <common/console.pa>
 
 PartitionTypeNamePtrIndexArr: {
 	db 0, 1, 1, 1, 1, 5, 2, 6

@@ -12,9 +12,9 @@
 [CPU 8086]
 [BITS 16]
 
-#include "version_h.asm"
-#define STDCONIO_MINIMAL 1
-#include <stdconio_h.asm>
+#include "version.pah"
+#define CONSOLE_MINIMAL 1
+#include <common/console.pah>
 
 SECTION .text vstart=BEGIN_ADDR
 entry:	
@@ -123,7 +123,7 @@ halt: {
 	hlt
 jmp halt }
 
-#include <stdconio.asm>
+#include <common/console.pa>
 
 @rodata:
 

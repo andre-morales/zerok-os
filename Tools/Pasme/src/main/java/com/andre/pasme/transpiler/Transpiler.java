@@ -260,7 +260,7 @@ public class Transpiler {
 			emit.add(new Line("push bp", line));
 			emit.add(new Line("mov bp, sp", line));
 			if (currentStackVarsSize > 0) {
-				emit.add(new Line("sub bp, " + currentStackVarsSize, line));
+				emit.add(new Line("sub sp, " + currentStackVarsSize, line));
 			}
 			return emit;
 		}
