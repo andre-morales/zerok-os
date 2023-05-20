@@ -1,11 +1,13 @@
+/* Boostrapper (Stage 3)
+ * 
+ * Author:   André Morales 
+ * Version:  0.67
+ * Creation: 02/01/2021
+ * Modified: 25/01/2022 */
+
 [BITS 16]
 [CPU 386]
 [ORG 0x500]
-
-/* Author:   André Morales 
-   Version:  0.67
-   Creation: 02/01/2021
-   Modified: 25/01/2022 */
 
 ; Physical Map
 ; -- [ 500] GDT / Stack
@@ -34,6 +36,8 @@ var void XtLoaderStruct
 var void XtLoaderStruct.end
 
 SECTION stack vstart=0x500 progbits
+
+dw 'Zk'
 
 ; Global descriptor table imported by LGDT instruction
 GDT: {
@@ -73,13 +77,13 @@ dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 w
 start: {
 	mov sp, 0x6F0
 
-	Print(."\N-- XtLoader Head ${VERSION}")
+	Print(."\N-- ZkLoader Head $#VERSION#")
 
 	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
 
-	Print(."\NLoading XTLOADER.ELF\N")
-	mov si, ."XTOS/XTLOADERELF"
+	Print(."\NLoading ZKLOADER.ELF\N")
+	mov si, ."ZKOS/ZKLOADERELF"
 	mov di, STAGE4_FILE_ADDR
 	call ReadFile
 		
@@ -95,7 +99,7 @@ start: {
 }
 
 ReadFile: {
-	mov si, ."XTOS       /XTLOADERELF"
+	mov si, ."ZKOS       /ZKLOADERELF"
 	call FATFS.FindFile
 	
 	mov word [Drive.bufferPtr], di

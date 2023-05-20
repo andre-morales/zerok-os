@@ -5,6 +5,8 @@
  * Creation: 02/01/2021
  * Modified: 05/02/2022 */
 
+%define BREAK xchg bx, bx
+%define BREAK nop
 
 var void FATFS
 	var void .BPB
@@ -17,29 +19,32 @@ var void FATFS
 	var short .totalLogicalSectors
 	var char[12] .label
 
+	var short .directoryEntriesPerCluster
+	var short .bytesPerCluster
+	var short .totalRootDirSectors
+
 	; FAT12 or FAT16?
 	var byte .clusterBits
-
+	
+	; LBA pointers to sections
 	var int .beginningSct
 	var int .fatSct
 	var int .rootDirSct
 	var int .dataAreaSct
 
-	var short .directoryEntriesPerCluster
-	var short .bytesPerCluster
-
+	; General state
 	var int .directorySector
 	var bool .inRootDirectory
 	var byte* .clusterBuffer
+	var short .lastReadFATSector
+	
 	var byte[512] .clusterMapBuffer
 var void .vars_end
 
 FATFS.Initialize: {
-	push bp
-	mov bp, sp
-	
 	CLSTACK
 	farg byte* firstSectorPtr
+	ENTERFN
 	
 	; Read all important stuff from BPB
 	mov si, [$firstSectorPtr]	
@@ -87,6 +92,7 @@ FATFS.Initialize: {
 	mul word [FATFS.rootDirectoryEntries] 
 	mov di, 512
 	div di
+	mov [FATFS.totalRootDirSectors], ax
 	
 	; Beginning of Data Area is Root Dir. beginning + Root Dir. size
 	add bx, ax
@@ -101,10 +107,12 @@ FATFS.Initialize: {
 	mov bx, 32 | div bx
 	mov [FATFS.directoryEntriesPerCluster], ax
 	
-	mov sp, bp
-	pop bp
-ret $stack_args_size 
-
+	
+	; Initialize variables
+	mov word [FATFS.lastReadFATSector], 65535
+	
+	jmp .end
+	
 	.testClusterCount: {
 		test ax, ax | jz .halt  ; This is FAT32, and is not supported.
 		cmp ax, 4085 | jg .fat16
@@ -118,13 +126,106 @@ ret $stack_args_size
 		.halt:
 		int 30h
 	}
+	
+	.end:
+	LEAVEFN
+}
+
+; void (char* fileName)
+; Finds a single file in the root directory.
+FATFS.FindFileInRootDir: {
+	CLSTACK
+	farg char* fileNameStr
+	lvar int currentSector
+	lvar short sectorsRemaining
+	ENTERFN
+	
+	push word [Drive.bufferPtr]
+	mov word [Drive.bufferPtr], FATFS.clusterBuffer
+	
+	; $currentSector = FATFS.rootDirSct
+	mov ax, [FATFS.rootDirSct + 0]
+	mov [$currentSector + 0], ax
+	mov ax, [FATFS.rootDirSct + 2]
+	mov [$currentSector + 2], ax
+	
+	; $sectorsRemaining = FATFS.totalRootDirSectors
+	push word [FATFS.totalRootDirSectors]
+	pop word [$sectorsRemaining]
+	
+	.findInSector:	
+		; Read current sector
+		push word [$currentSector + 2]
+		push word [$currentSector + 0]
+		call Drive.ReadSector
+		
+		mov si, [$fileNameStr]
+		mov di, [Drive.bufferPtr]
+		
+		; 16 Directory entries per sector
+		mov dl, 16
+		.entry:
+			BREAK
+		
+			call FATFS._TestFileEntry
+			jnc .found
+			
+			add di, 32
+			
+			dec dl
+		jnz .entry
+		
+		add word [$currentSector + 0], 1
+		adc word [$currentSector + 2], 0
+	
+		dec word [$sectorsRemaining]
+	jnz .findInSector
+	
+	; Return with AX = 0 to indicate the entry wasn't found.
+	xor ax, ax
+	
+	.found:	
+	.end:
+	pop word [Drive.bufferPtr]
+	LEAVEFN
+}
+
+; [SI] = file name | [DI] = ptr
+; Destroys: AX, CX
+FATFS._TestFileEntry: {
+	Serial.Print(."\NTest: ")
+	Serial.PrintHexNum si
+	Serial.Print(." and ")
+	Serial.PrintHexNum di
+	
+	{
+		push cx
+		push si | push di
+		
+		mov cx, 11
+		rep cmpsb
+	
+		pop di | pop si
+		pop cx
+	}
+	jne .notEqual
+	
+	; Get cluster number, and return with no carry clear
+	mov ax, [di + 0x1A]
+	clc
+	ret
+	
+	; Return with carry set to represent an error
+	.notEqual:
+	stc
+	ret 
 }
 
 FATFS.FindFile: {
 	CLSTACK
-	lvar char* pathStrPtr     | ; Pointer to the path
-	lvar char[11] currentFile | ; Current file we're searching for
-	lvar byte lastFile        | ; Is this the last file and the path walking is over
+	lvar char* pathStrPtr     | ; Full path string
+	lvar char[11] currentFile | ; Current file name we're searching for
+	lvar bool lastFile        | ; Is this the last file and the path walking is over
 	lvar word fileCluster     | ; The cluster of the file/directory we were looking for
 	ENTERFN
 
@@ -135,6 +236,7 @@ FATFS.FindFile: {
 	mov [$pathStrPtr], si
 	mov byte [FATFS.inRootDirectory], 1
 	
+	; FATFS.directorySector = FATFS.rootDirSct
 	mov si, FATFS.rootDirSct
 	mov di, FATFS.directorySector
 	movsw
@@ -165,23 +267,23 @@ FATFS.FindFile: {
 	mov cx, 16
 	
 	.nextFileEntry:
-		call FATFS._testFATFileEntry
-		cmp al, 1 | je .FileNotFound
-		cmp al, 2 | je .FileNotFoundOnDir
-		
-		; Cluster number at offset in 0x1A entry.
-		mov ax, [si + 0x1A]
+		push cx
+		lea di, [$currentFile]
+		xchg si, di
+		call FATFS._TestFileEntry
+		xchg si, di
+		pop cx
+	
+		jc .FileNotFound		
+
 		mov [$fileCluster], ax
 		
 		; Is this the last file on the path string?
 		cmp byte [$lastFile], 0 | je .FoundFolder
-		
-		;Print(."\NFound file.")
-		mov ax, [$fileCluster]
+
 		jmp .End
 		
 		.FoundFolder:
-		;Print(."\NFound folder.")
 		push ax
 		call FATFS.ReadCluster
 			
@@ -219,6 +321,7 @@ ret $stack_args_size
 			stosb
 		loop .nextch
 		
+		Print(."\NERR BAD_PATH")
 		int 30h ; Path isn't over in 11 characters. 
 		
 		.lastfile:
@@ -236,37 +339,6 @@ ret $stack_args_size
 		
 		.end:
 	ret }
-
-	/* Compares the string at DS:SI with the current file being searched. */
-	FATFS._testFATFileEntry: {
-		push si | push di
-		
-		lea di, [$currentFile]
-		mov al, [si + 0x00]
-		
-		cmp al, 0 | jne .NotEmpty
-		
-		mov al, 2
-		jmp .End
-
-		.NotEmpty:
-		xor bx, bx
-		.cmpFileName:
-			lodsb
-			mov ah, [di + bx]
-			cmp ah, al | je .nxt
-			mov al, 1 | jmp .End
-			
-			.nxt:
-			inc bx
-		cmp bx, 11 | jl .cmpFileName
-		
-		xor al, al
-		
-		.End:
-		pop di | pop si
-	ret }
-
 }
 
 ; void (short cluster)
@@ -275,27 +347,24 @@ FATFS.ReadCluster: {
 	farg short cluster
 	ENTERFN
 	
+	push dx
 	push word [Drive.bufferPtr]
 	
 	mov ax, [$cluster]
-
-	#ifdef FAT16_DEBUG
-	Print(."\NReading cluster: ")
-	PrintDecNum ax
-	#endif
 	
+	Serial.Print(."\N[FS] Cls ")
+	Serial.PrintHexNum ax
+	
+	; If cluster number <= 2, it is invalid.
 	cmp ax, 2
 	jg .read
 		
-	#ifdef FAT16_DEBUG
-	Print(."\NInvalid cluster.\N")
-	#endif
+	Print(."\Bad cluster.\N")
 	jmp Halt
 	
 	.read:
-	dec ax 
-	dec ax
 	; Calculate beginning sector in the data area.
+	sub ax, 2
 	mul word [FATFS.logicalSectorsPerCluster]
 	
 	; Sum offset with beginning of data area
@@ -311,46 +380,37 @@ FATFS.ReadCluster: {
 		adc dx, 0
 		add word [Drive.bufferPtr], 0x200
 	loop .readSector
-	pop word [Drive.bufferPtr]
 	
-	mov sp, bp
-	pop bp
-ret $stack_args_size }
+	pop word [Drive.bufferPtr]
+	pop dx
+	LEAVEFN
+}
 
-
-; void (short cluster)
-FATFS.ReadClusterChain: {
+; short (short cluster)
+; Reads FAT table and returns the next cluster in the chain.
+; If the end of the chain has been reached, returns 0xFFFF and sets the carry flag.
+;
+; Destroys AX, BX, CX, DI
+FATFS.GetNextClusterOf: {
 	CLSTACK
 	farg short cluster
 	ENTERFN
 	
-	push word [Drive.bufferPtr]              ; Save drive buffer pointer
-
-	cmp byte [FATFS.clusterBits], 12 | je ._readClusterChain12
-	cmp byte [FATFS.clusterBits], 16 | je ._readClusterChain16
+	push dx
 	
-	.end:
-	pop word [Drive.bufferPtr]
-	
-	mov sp, bp
-	pop bp
-ret $stack_args_size
-
-	._readClusterChain16:
-		; Read current cluster
-		push word [$cluster]
-		call FATFS.ReadCluster
+	cmp byte [FATFS.clusterBits], 16
+	je .fat16
+	jmp Halt
 		
-		; Increase buffer ptr by cluster size
-		mov ax, [FATFS.bytesPerCluster]
-		add [Drive.bufferPtr], ax
-		
-		; Calculate the sector of the FAT we need to load
+	.fat16:	{
+		; Use the cluster number to find the next one.
+		; Each cluster number is 2 bytes. We need to find
+		; in what FAT map sector our next cluster number is.
 		xor dx, dx
 		mov ax, [$cluster]
 		mov cx, 256 | div cx
 		
-		; Reads a sector of the FAT table
+		; Reads a sector of the FAT table, if necessary
 		push ax
 		call FATFS._readFATSector
 		
@@ -359,19 +419,15 @@ ret $stack_args_size
 		shl di, 1 ; Multiply by 2 because each FAT entry is 2 bytes.
 		mov ax, [FATFS.clusterMapBuffer + di]
 		
-		mov [$cluster], ax
-		cmp ax, 0xFFFF | jne ._readClusterChain16
-	jmp FATFS.ReadClusterChain.end
+		; Save the cluster number, and check if we are done.
+		cmp ax, 0xFFFF
+		jne .found
 		
-	._readClusterChain12:
-		; Read current cluster
-		push word [$cluster]
-		call FATFS.ReadCluster
-		
-		; Increase buffer ptr by cluster size
-		mov ax, [FATFS.bytesPerCluster]
-		add [Drive.bufferPtr], ax
-		
+		stc
+		jmp .end
+	}
+	
+	.fat12: {
 		; Calculate the sector of the FAT we need to load
 		xor dx, dx
 		mov ax, [$cluster]
@@ -396,36 +452,88 @@ ret $stack_args_size
 		
 		test dl, dl | jnz .oddcluster
 		and ah, 0x0F		
-		jmp .l2
+		jmp .done
 		
 		.oddcluster:
 		mov cl, 4
 		shr ax, cl
 		
-		.l2:
-		mov [$cluster], ax
-		cmp ax, 0xFFF | jne ._readClusterChain12
-	jmp FATFS.ReadClusterChain.end
+		.done:
+		cmp ax, 0xFFF
+		jne .found
+		
+		stc
+		jmp .end
+	}
+	
+	.found:
+	clc
+	
+	.end:
+	pop dx
+	LEAVEFN
 }
 
+; void (short cluster)
+FATFS.ReadClusterChain: {
+	CLSTACK
+	farg short cluster
+	ENTERFN
+	
+	; Save drive buffer pointer
+	push word [Drive.bufferPtr]
+	
+	Serial.Print(."\N[FS] Chain ")
+	Serial.PrintHexNum word [$cluster]
+	
+	mov dx, [$cluster]
+	.chainLoop:
+		; Read current cluster first
+		push dx
+		call FATFS.ReadCluster
+		
+		; Increase buffer ptr by cluster size
+		mov ax, [FATFS.bytesPerCluster]
+		add [Drive.bufferPtr], ax
+		
+		push dx
+		call FATFS.GetNextClusterOf
+		mov dx, ax		
+		jc .end
+	jmp .chainLoop
+	
+	.end:
+	pop word [Drive.bufferPtr]
+	
+	LEAVEFN
+}
+
+; void (short sect)
+; Reads a single sector of the FAT map.
 FATFS._readFATSector: {
 	CLSTACK
 	farg short sector
 	ENTERFN
 	
+	; If we already have this sector loaded, no point in loading it again.
 	mov ax, [$sector]
-	cwd
+	cmp ax, [FATFS.lastReadFATSector]
+	je .end
 	
+	; DX:AX = AX
+	cwd
+	mov [FATFS.lastReadFATSector], ax
+	
+	; LBA = FAT_Start + Sector
 	add ax, [FATFS.fatSct]
 	adc dx, [FATFS.fatSct + 2]
 	
-	mov bx, Drive.bufferPtr
-	mov cx, FATFS.clusterMapBuffer
-	
-	xchg cx, [bx]
-	push dx | push ax
-	call Drive.ReadSector
-	mov [bx], cx	
+	push word [Drive.bufferPtr]
+		mov word [Drive.bufferPtr], FATFS.clusterMapBuffer
+		push dx | push ax
+		call Drive.ReadSector
+	pop word [Drive.bufferPtr]
 
+	.end:
 	LEAVEFN
 }

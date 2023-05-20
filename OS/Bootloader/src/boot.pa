@@ -1,4 +1,5 @@
-/* Boot Head (Stage 1)
+/* Boot (Stage 1)
+ * 
  * Author:   André Morales 
  * Version:  0.7.0
  * Creation: 07/10/2020
@@ -15,7 +16,7 @@
 ; -- [...    - 0x06FF] Stack
 ; -- [0x6000 -   ... ] Where Stage 2 will be loaded.
 ; -- [0x7600 -    #  ] Loaded MBR.
-; -- [0x7800 -    #  ] Test fVBR/EBR.
+; -- [0x7800 -    #  ] Test VBR/EBR.
 ; -- [0x7A00 -    #  ] Test VBR from EBR.
 ; -- [0x7C00 -    #  ] Our loaded VBR (Stage 1).
 ; -- [0x7E00 - 0x7FFF] Varible storage

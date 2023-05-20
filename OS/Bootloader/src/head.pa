@@ -1,4 +1,4 @@
-/* Boot Core (Stage 2)
+/* Head (Stage 2)
  *
  * Author:   André Morales 
  * Version:  0.7.0
@@ -19,12 +19,14 @@
 [ORG 0x6000]
 
 ; How many sectors this stage takes up
-%define SECTORS 5
+%define SECTORS 7
+#define FATX_DEBUG 1
+#define CONSOLE_MIRROR_TO_SERIAL 1
 
 ; Include a few macro definition files
 #include "version.pah"
 #include <common/console.pah>
-
+#include <common/serial.pah>
 SECTION .text vstart=0x6000
 
 ; Stores in the file our signature and sector count which
@@ -45,7 +47,7 @@ start: {
 	; Setup stack
 	mov ss, ax
 	mov sp, 0x7FF0
-	
+
 	; Configure free interrupt 30h to halt the system if we need
 	mov word [0x30 * 4 + 0], Halt ; Setup interrupt 0x30 to Halt
 	mov word [0x30 * 4 + 2], 0
@@ -54,7 +56,10 @@ start: {
 	mov [Drive.id], dl
 	
 	; Print header
-	Print(."\N         XtOS Bootloader v$#VERSION#")
+	Print(."\N         ZkOS Bootloader v$#VERSION#")
+	
+	; Initialize serial
+	call Serial.init	
 	
 	; Configure a buffer region and temporary storage to process the file system
 	mov word [Drive.bufferPtr], 0x0500
@@ -63,7 +68,7 @@ start: {
 	call InitDrive
 	call InitFileSystem
 	
-	Print(."\NPress any key to load LDRHEAD.BIN.")
+	Print(."\NPress any key to load BSTRAP.BIN.")
 	call WaitKey
 	call Load_LdrHeadBin
 
@@ -79,13 +84,27 @@ start: {
 	mov cx, FATFS.vars_end - FATFS
 	rep movsb 
 	
-	; Jump to Stage 3.
+	Print(."OK.")
+	
+	cmp word [0x500], 'Zk' | je .jump
+	Print(."\NInvalid signature")
+	int 0x30
+
+; Jump to Stage 3.
+.jump:
 	jmp 0x700
 }
 
-; -- Load XTOS/LDRHEAD.BIN
-Load_LdrHeadBin: {	
-	mov si, ."XTOS/LDRHEAD BIN"
+; -- Load XTOS/BSTRAP.BIN
+Load_LdrHeadBin: {
+	mov ax, ."ZKOS       "
+	push ax
+	call FATFS.FindFileInRootDir
+	
+	Serial.Print(."\Nfound in cl: ")
+	Serial.PrintHexNum ax
+
+	mov si, ."ZKOS/BSTRAP  BIN"
 	call FATFS.FindFile
 	Print(."\NFound.")
 	
@@ -129,6 +148,12 @@ InitFileSystem: {
 	
 	Print(."\NLabel: ")
 	Print(FATFS.label)
+	
+	Print(."\NBits: ")
+	xor ah, ah
+	mov al, [FATFS.clusterBits]
+	call printDecNum
+	
 	Print(."\NBeginning: 0x")
 	PrintHexNum word [FATFS.beginningSct + 2]
 	Putch(':')
@@ -148,6 +173,9 @@ InitFileSystem: {
 	PrintHexNum word [FATFS.dataAreaSct + 2]
 	Putch(':')
 	PrintHexNum word [FATFS.dataAreaSct]
+	
+	Print(."\NReserved Lg. Sectors: ")
+	PrintDecNum [FATFS.reservedLogicalSectors] 
 	
 	Print(."\NBytes per Logical Sector: ")
 	PrintDecNum [FATFS.bytesPerLogicalSector] 
@@ -214,6 +242,7 @@ ret }
 #include <common/console.pa>
 #include <common/drive.pa>
 #include <common/fat1x.pa>
+#include <common/serial.pa>
 
 @rodata:
 times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.

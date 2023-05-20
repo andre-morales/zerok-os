@@ -77,7 +77,7 @@ Menu: {
 	
 		mov dx, 00_02h | call setCursor
 		
-		Print(."-XtBootMgr v${VERSION} [Drive 0x")
+		Print(."-XtBootMgr v$#VERSION# [Drive 0x")
 		
 		xor ah, ah | mov al, [Drive.id]
 		PrintHexNum(ax)

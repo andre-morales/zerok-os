@@ -5,7 +5,7 @@
 
 /* Prints a single character that was put into AL */
 putch: {
-	push ax | push bx
+	push ax | push bx | push dx
 	
 	cmp al, 0Ah ; Is character newline?
 	jne .print
@@ -15,11 +15,15 @@ putch: {
 	mov al, 0Ah ; Then print an actual new line
 	
 	.print:
+	#ifdef CONSOLE_MIRROR_TO_SERIAL
+	call Serial.putch
+	#endif
+	
 	mov ah, 0Eh
 	mov bx, 00_1Ah ; BH (0) BL (1Ah)
 	int 10h
 	
-	pop bx | pop ax
+	pop dx | pop bx | pop ax
 ret }
 
 /* Prints a string placed in SI */
@@ -193,6 +197,8 @@ ret
     ret	
 }
 
+; [AX] = Number
+; [ES:DI] = Pointer to where a null-terminated string will be stored.
 hexNumToStr: {
 	push ax
 	push cx

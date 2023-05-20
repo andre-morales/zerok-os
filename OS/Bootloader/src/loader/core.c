@@ -7,7 +7,7 @@ void main(void* args){
 	video_init();
 	video.cur_y = 24;
 
-	print("\n\n-- XtLoader 32 --");
+	print("\n\n-- ZkLoader 32 --");
 	print("\nReached protected mode.");
 	print("\nBinary version 2.");
 }

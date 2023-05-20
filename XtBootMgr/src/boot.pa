@@ -43,11 +43,11 @@ entry:
 /** In our Start procedure, it is safe to refer to our own strings, functions, variables, etc. */
 start:
 	; Print welcome message followed by boot info
-	Print(."@XtBootMgr v${VERSION} \NBooted at [")	
+	Print(."@XtBootMgr v$#VERSION# \NBooted at [")	
 	
 	; Print boot CS:IP
 	pop ax
-	call printHexNum
+	call printHexNum_short
 	Putch(':')
 	PrintHexNum(bx) 
 	

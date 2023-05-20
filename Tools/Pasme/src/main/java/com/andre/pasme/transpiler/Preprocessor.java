@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 /**
  *
@@ -37,8 +38,9 @@ public class Preprocessor {
 		var emit = new ArrayList<Line>();
 		emit.add(new Line("; -- PASME Version " + PasmeCLI.VERSION_STR, 0));
 		
-		var ifBlockState = IFBlockState.OUTSIDE;
-
+		var ifStackState = true;
+		var ifStack = new Stack<Boolean>();
+		
 		for (int i = 0; i < lines.size(); i++) {
 			var line = lines.get(i);
 			var str = line.content;
@@ -46,27 +48,49 @@ public class Preprocessor {
 			var lineN = line.number;
 
 			try {
+				if (strTr.startsWith("#if ")) {
+					ifStack.push(ifStackState);
+					if (!ifStackState) continue;
+					
+					var def = Str.remainingAfter(str, "#if ");
+					ifStackState = "1".equals(tr.definedConstants.get(def));
+					continue;
+				}
+
+				if (strTr.startsWith("#ifdef ")) {
+					ifStack.push(ifStackState);
+					if (!ifStackState) continue;
+					
+					var def = Str.remainingAfter(str, "#ifdef ");
+					ifStackState = tr.definedConstants.get(def) != null;
+					continue;
+				}
+
+				if (strTr.startsWith("#ifndef ")) {
+					ifStack.push(ifStackState);
+					if (!ifStackState) continue;
+					
+					var def = Str.remainingAfter(str, "#ifndef ");
+					ifStackState = tr.definedConstants.get(def) == null;
+					continue;
+				}
+				
 				// Check if IF block has ended.
 				if (strTr.startsWith("#endif")) {
-					if (ifBlockState == IFBlockState.OUTSIDE) {
-						throw new TranspilerException("LINE " + lineN + ": #endif found but no #if statement before it.");
-					}
-					ifBlockState = IFBlockState.OUTSIDE;
+					ifStackState = ifStack.pop();
+					continue;
 				}
 
 				// Flip state of IF block if necessary
 				if (strTr.startsWith("#else")) {
-					if (ifBlockState == IFBlockState.OUTSIDE) {
-						throw new TranspilerException("LINE " + lineN + ": #else found but no #if statement before it.");
+					if (ifStack.lastElement()) {
+						ifStackState = !ifStackState;
 					}
-
-					if (ifBlockState == IFBlockState.TRUE) ifBlockState = IFBlockState.FALSE;
-					else ifBlockState = IFBlockState.TRUE;
 					continue;
 				}
 
 				// Ignore any lines while inside an IF block that has evaluated to false.
-				if (ifBlockState == IFBlockState.FALSE) continue;
+				if (!ifStackState) continue;
 
 				// If its not a preprocessor statement, check if it contains a preprocessor value.
 				if (!strTr.startsWith("#")) {
@@ -89,33 +113,6 @@ public class Preprocessor {
 				if (strTr.startsWith("#define ")) {
 					var def = Str.remainingAfter(str, "#define ").split(" ", 2);
 					tr.definedConstants.put(def[0], def[1]);
-					continue;
-				}
-
-				if (strTr.startsWith("#if ")) {
-					var def = Str.remainingAfter(str, "#if ");
-					var boolResult = "1".equals(tr.definedConstants.get(def));
-
-					if (boolResult) ifBlockState = IFBlockState.TRUE;
-					else ifBlockState = IFBlockState.FALSE;
-					continue;
-				}
-
-				if (strTr.startsWith("#ifdef ")) {
-					var def = Str.remainingAfter(str, "#ifdef ");
-					var boolResult = tr.definedConstants.get(def) != null;
-
-					if (boolResult) ifBlockState = IFBlockState.TRUE;
-					else ifBlockState = IFBlockState.FALSE;
-					continue;
-				}
-
-				if (strTr.startsWith("#ifndef ")) {
-					var def = Str.remainingAfter(str, "#ifndef ");
-					var boolResult = tr.definedConstants.get(def) == null;
-
-					if (boolResult) ifBlockState = IFBlockState.TRUE;
-					else ifBlockState = IFBlockState.FALSE;
 					continue;
 				}
 

@@ -48,18 +48,17 @@ Drive.ReadSector: {
 	lvar short addr_cylinder
 	lvar byte addr_sector
 	lvar byte addr_head
+	lvar char[6] buffer
 	ENTERFN
-	
+
 	push es
 	push di | push si
 	push dx | push cx | push bx | push ax
 	
-	#ifdef DRIVE_DBG
-	Print(."\NSector 0x")
-	PrintHexNum word [$sector_h]
-	Putch(' ')
-	PrintHexNum word [$sector_l]
-	#endif
+	Serial.Print(."\N[D] R ")
+	Serial.PrintHexNum [$sector_h]
+	Serial.Print(."_")
+	Serial.PrintHexNum [$sector_l]
 	
 	cmp byte [Drive.LBA.available], 0
 	jnz .LBAtoCHS ; LBA not supported. Try CHS translation.

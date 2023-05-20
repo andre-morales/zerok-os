@@ -1,7 +1,13 @@
+
+#ifndef CONSOLE_H
+#define CONSOLE_H 1
+
 ; Author:   André Morales 
 ; Version:  2.01
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
+
+#include <common/io.h>
 
 #ifdef CONSOLE_MINIMAL
 	%macro Print 1
@@ -12,6 +18,13 @@
 	%macro PrintHexNum 1
 		mov ax, %1
 		call printHexNum_short
+	%endmacro
+	
+	%macro Putch 1
+		push ax
+		mov al, %1
+		call putch
+		pop ax
 	%endmacro
 #else 
 	%macro Putch 1
@@ -54,5 +67,7 @@
 		mov ax, %1
 		call clearScreen
 	%endmacro	
+#endif
+
 #endif
 
