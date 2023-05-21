@@ -5,6 +5,8 @@
  * Creation: 02/01/2021
  * Modified: 25/01/2022 */
 
+
+
 [BITS 16]
 [CPU 386]
 [ORG 0x500]
@@ -16,12 +18,16 @@
 ; -- [2000] Stage 4 file will be loaded here
 ; -- [3000] Stage 4 code starts here
 
+
+#define CONSOLE_MIRROR_TO_SERIAL 1
 #include "version.pah"
 #include <common/console.pah>
+#include <common/serial.pah>
 
 %define FAT16_CLUSTER_BUFFER_ADDR 0x1200
 %define STAGE4_FILE_ADDR 0x2000
 %define STAGE4_EXEC_ADDR 0x3000
+
 
 var short ELF.fileLocation
 var int ELF.entryPoint
@@ -30,10 +36,11 @@ var word ELF.progHeaderSize
 var word ELF.progHeaderCount
 
 ; Variables to be passed to XtLoader
-var void XtLoaderStruct
+%define LOADER_STRUCT_SIZE 2
+var void LoaderStruct
 	var byte vidmode.columns
 	var byte vidmode.id
-var void XtLoaderStruct.end
+var void LoaderStruct.end
 
 SECTION stack vstart=0x500 progbits
 
@@ -42,7 +49,7 @@ dw 'Zk'
 ; Global descriptor table imported by LGDT instruction
 GDT: {
 	; Entry 0 must be null
-	dq 0     
+	times 8 db 0
 
 	; Entry 1 (CS)
 	dw 0xFFFF    ; Limit (0:15)
@@ -78,7 +85,10 @@ start: {
 	mov sp, 0x6F0
 
 	Print(."\N-- ZkLoader Head $#VERSION#")
-
+	
+	; Initialize serial
+	call Serial.init	
+	
 	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
 
@@ -100,9 +110,10 @@ start: {
 
 ReadFile: {
 	mov si, ."ZKOS       /ZKLOADERELF"
-	call FATFS.FindFile
+	push si
+	call FATFS.LocateFile
 	
-	mov word [Drive.bufferPtr], di
+	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	push ax
 	call FATFS.ReadClusterChain	
 ret }
@@ -126,7 +137,9 @@ ret }
 
 Enable32: {
 	Print(."\NEntering 32-bit...")
-
+	
+	BREAK
+	
 	cli             ; Interrupts clear.
 	lgdt [GDT_Desc] ; Load GDT
 	
@@ -135,23 +148,18 @@ Enable32: {
 	or al, 1
 	mov cr0, eax
 	
-	jmp 08h:Entry32 ; Far jump to set CS
+	; Far jump to set CS and truly enable 32 bit
+	jmp 08h:Entry32
 }
 
 [BITS 32]
 Entry32: {
-	; Set all segments to data segment
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov ss, ax
-	mov fs, ax
-	mov gs, ax
-		
-	; Set ESI to variables to be passed and jump
-	mov esi, XtLoaderStruct
+	; Set ESI to variables to be passed
+	mov esi, LoaderStruct
+	mov ecx, LOADER_STRUCT_SIZE
+	
 	jmp [ELF.entryPoint]
-.End: }
+}
 
 [BITS 16]
 ; Loads the ELF file present at 0x3000.
@@ -282,6 +290,7 @@ FileNotFoundOnDir: {
 #include <common/console.pa>
 #include <common/drive.pa>
 #include <common/fat1x.pa>
+#include <common/serial.pa>
 
 @rodata:
 

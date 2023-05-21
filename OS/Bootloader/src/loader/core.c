@@ -1,10 +1,17 @@
 #include "core.h"
+#include "vga_video.h"
+#include "string.h"
+#include "stdio.h"
 
-struct Video video;
+extern char loader_args[2];
 
-void main(void* args){
-	loadArgs(args);
+void main(){
+	// Load stuff passed by previous stages
+	loadInitStructure(loader_args);
+		
+	// Setup vga video
 	video_init();
+	video.cur_x = 0;
 	video.cur_y = 24;
 
 	print("\n\n-- ZkLoader 32 --");
@@ -12,44 +19,9 @@ void main(void* args){
 	print("\nBinary version 2.");
 }
 
-void loadArgs(void* args){
-	uint8_t* cargs = (uint8_t*) args;
-	video.columns = cargs[0];
-	video.mode = cargs[1];
-	video.cur_x = 0;
-	video.cur_y = 0;
-}
-
-void video_init(){
-	int page;
-	if(video.mode == 7){
-		page = 0xB0;
-	} else {
-		page = 0xB8;
-	}
-
-	// Identity map VRAM
-	map(0xA0, page);
-	video.vram = (void*)(0xA0 * 0x1000);
-}
-
-void video_scroll(int lines){
-	if(lines == 0) return;
-	if(lines > 0){
-		// Copy
-		void* dst = video.vram;
-		const void* src = video.vram + video.columns * lines * 2;
-		uint32_t len = video.columns * (25 - lines) * 2;
-		memmove(dst, src, len);
-
-		// Blank last lines
-		uint8_t* clr_dst = video.vram + video.columns * (25 - lines) * 2;
-		uint32_t clr_len = video.columns * lines;
-		while(clr_len--){
-			*(clr_dst++) = 0;
-			*(clr_dst++) = 7;
-		}
-	}
+void loadInitStructure(uint8_t* args){
+	video.columns = args[0];
+	video.mode = args[1];
 }
 
 void map(int virtual, int physical){
@@ -64,75 +36,11 @@ void map(int virtual, int physical){
 	reload_page_directory();	
 }
 
+void breakpoint() {
+	asm volatile ("xchg %bx, %bx");
+}
+
 void reload_page_directory(){
 	asm volatile ("movl %%cr3, %%eax;\n\t"
 		"movl %%eax, %%cr3; \n\t" : : : "eax");
-}
-
-/* stdio.h */
-void print(const char* msg){
-	char c;
-	while(c = *msg){
-		putch(c);
-		msg++;
-	}
-}
-
-void putch(char c){
-	if(c == '\n'){
-		video.cur_x = 0;
-		video.cur_y++;
-	} else {
-		uint8_t* vram = (uint8_t*)video.vram;
-
-		int offset = video.cur_y * video.columns + video.cur_x;
-		vram[offset * 2] = c;
-
-		if(++video.cur_x >= video.columns){
-			video.cur_x = 0;
-			video.cur_y++;
-		}
-	}
-
-	if(video.cur_y >= 25){
-		video_scroll(1);
-		video.cur_y = 24;
-	}}
-
-
-/* string.h */
-uint32_t strlen(const char* str){
-	uint32_t len = 0;
-	while(*str != 0){
-		str++;
-		len++;
-	}
-	return len;
-}
-
-void memcpy(void* dst, const void* src, uint32_t len){
-	char* cdst = (char*)dst;
-	char* csrc = (char*)src;
-
-	while(len){
-		*(cdst++) = *(csrc++);
-		len--;
-	}
-}
-
-void memmove(void* dst, const void* src, uint32_t len){
-	char* cdst = (char*)dst;
-	char* csrc = (char*)src;
-
-	while(len--){
-		*(cdst++) = *(csrc++);
-	}
-}
-
-void memset(void* dst, uint8_t c, uint32_t len){
-	char* cdst = (char*)dst;
-
-	while(len--){
-		*(cdst++) = c;
-	}
 }
