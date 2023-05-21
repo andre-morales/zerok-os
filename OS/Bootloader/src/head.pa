@@ -19,7 +19,7 @@
 [ORG 0x6000]
 
 ; How many sectors this stage takes up
-%define SECTORS 7
+%define SECTORS 6
 #define FATX_DEBUG 1
 #define CONSOLE_MIRROR_TO_SERIAL 1
 
@@ -140,54 +140,52 @@ InitFileSystem: {
 	
 	pop ds	
 	
-	Print(."\NLabel: ")
-	Print(FATFS.label)
+	Print(."\NFAT")
 	
-	Print(."\NBits: ")
 	xor ah, ah
 	mov al, [FATFS.clusterBits]
 	call printDecNum
+	
+	Print(.": ")
+	Print(FATFS.label)
 	
 	Print(."\NStart: 0x")
 	PrintHexNum word [FATFS.beginningSct + 2]
 	Putch(':')
 	PrintHexNum word [FATFS.beginningSct]
 	
-	Print(."\NFAT: 0x")
-	PrintHexNum word [FATFS.fatSct + 2]
-	Putch(':')
-	PrintHexNum word [FATFS.fatSct]
+	Serial.Print(."\NFAT: 0x")
+	Serial.PrintHexNum word [FATFS.fatSct + 2]
+	Serial.Print(':')
+	Serial.PrintHexNum word [FATFS.fatSct]
 	
-	Print(."\NRoot Dir: 0x")
-	PrintHexNum word [FATFS.rootDirSct + 2]
-	Putch(':')
-	PrintHexNum word [FATFS.rootDirSct]
+	Serial.Print(."\NRoot Dir: 0x")
+	Serial.PrintHexNum word [FATFS.rootDirSct + 2]
+	Serial.Print(':')
+	Serial.PrintHexNum word [FATFS.rootDirSct]
 
-	Print(."\NData: 0x")
-	PrintHexNum word [FATFS.dataAreaSct + 2]
-	Putch(':')
-	PrintHexNum word [FATFS.dataAreaSct]
-	
-	Print(."\NTotal L. Sectors: ")
-	PrintDecNum [FATFS.totalLogicalSectors] 
+	Serial.Print(."\NData: 0x")
+	Serial.PrintHexNum word [FATFS.dataAreaSct + 2]
+	Serial.Print(':')
+	Serial.PrintHexNum word [FATFS.dataAreaSct]
 	
 	Print(."\NReserved L. Sectors: ")
 	PrintDecNum [FATFS.reservedLogicalSectors] 
 	
+	Print(."\NTotal L. Sectors: ")
+	PrintDecNum [FATFS.totalLogicalSectors] 
+	
+	Print(."\NFATs: ")
+	PrintDecNum [FATFS.fats]
+	
 	Print(."\NBytes per L. Sector: ")
 	PrintDecNum [FATFS.bytesPerLogicalSector] 
-	Print(."\NLogical Sectors per Cluster: ")
+	Print(."\NL. Sectors per Cluster: ")
 	PrintDecNum [FATFS.logicalSectorsPerCluster] 
 	Print(."\NBytes per Cluster: ")
 	PrintDecNum [FATFS.bytesPerCluster] 
 	Print(."\NL. Sectors per FAT: ")
 	PrintDecNum [FATFS.logicalSectorsPerFAT] 
-	Print(."\NFATs: ")
-	PrintDecNum [FATFS.fats]
-	Print(."\NRoot directory entries: ")
-	PrintDecNum [FATFS.rootDirectoryEntries] 
-	Print(."\NDirectory entries per cluster: ")
-	PrintDecNum [FATFS.directoryEntriesPerCluster] 
 ret }
 
 InitDrive: {	
@@ -246,4 +244,4 @@ times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.
 
 ; --------- Variable space ---------
 SECTION .bss
-@data:
+@bss:

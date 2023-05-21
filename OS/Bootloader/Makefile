@@ -39,7 +39,7 @@ boot_chs: src/boot.pa
 head: src/head.pa
 	${PASME} transpile src/head.pa -to build/head.asm ${PT_FLAGS}
 	${PASME} assemble  build/head.asm -to build/bin/head.img
-	${PASME} burn build/bin/head.img -to "${TestDisk}" -dstOff ${PartitionStart}+0x200 -length 3584
+	${PASME} burn build/bin/head.img -to "${TestDisk}" -dstOff ${PartitionStart}+0x200 -length 3072
 
 # -- Bootstrapper --
 bstrap: src/bootstrap.pa

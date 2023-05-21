@@ -24,14 +24,14 @@
 %define STAGE2_ADDR 0x6000
 
 ; 3-byte jmp instruction
-jmp Start
+jmp start | nop
 
 ; Space for BPB.
-times (21 + 12 + 26) db 0xFF
+times (21 + 12 + 26) db 0x11
 
 ; Start of code at 0x3E
 SECTION .text
-Start: {
+start: {
 	cli
 	
 	xor ax, ax
@@ -244,9 +244,10 @@ haltm: {
 
 Drive:
 	var byte Drive.id	
-	var short Drive.bytesPerSector
 	
 #ifdef LBA_AVAILABLE
+	var short Drive.bytesPerSector
+
 	.Init: {
 		mov di, lbaDAPS
 		xor ax, ax
@@ -270,8 +271,8 @@ Drive:
 	ret }
 	
 	.NoLBA:
-		Print(."No LBA")
-		ret
+		mov al, 'L'
+		jmp haltm
 	
 	; readSector(DX:BX lba)
 	.ReadSector: {
@@ -313,7 +314,6 @@ Drive:
 		push es
 		
 		mov dl, [Drive.id]
-		mov word [Drive.bytesPerSector], 512
 		mov ah, 08h | int 13h ; Query drive geometry
 		
 		pop es
@@ -345,39 +345,37 @@ Drive:
 	ret }
 	
 	.ReadSector: {
-		push bp
-		mov bp, sp
-		
 		CLSTACK
-		farg short LBA_L
-		farg short LBA_H
 		lvar short CYLINDER
 		lvar byte SECTOR
 		lvar byte HEAD
-		sub sp, $stack_vars_size
+		ENTERFN
 		
+		; Save LBA
 		push bx | push dx
+		
 		push si
 		push cx
 			
 		; -- Reading as CHS (Convert LBA to CHS) --
 		; Calculate cylinder
-		mov dx, [$LBA_H]					 ; Get LBA
-		mov ax, [$LBA_L]  
+		mov dx, [bp - 6]					 ; Get LBA
+		mov ax, [bp - 8]  
 		div word [Drive.sectorsTimesHeads]   ; LBA / (HPC * SPT)
 		mov [$CYLINDER], ax                  ; Save Cylinders
 		
 		cmp ax, [Drive.cylinders] | jg haltm ; Is cylinder number safe (out of bounds)?
 
 		; Calculate sector to BP - 3
-		mov dx, [bp - 6] | mov ax, [bp - 8]              ; Get LBA
-		div word [Drive.sectorsPerTrack]                 ; LBA % SPT + 1 | LBA % CX + 1
+		mov dx, [bp - 6]					 ; Get LBA
+		mov ax, [bp - 8]              		
+		div word [Drive.sectorsPerTrack]     ; LBA % SPT + 1 | LBA % CX + 1
 		inc dx
 		mov [$SECTOR], dl
 		
 		; Calculate head to BP - 4
 		xor dx, dx
-		div word [Drive.headsPerCylinder]            ; (LBA / SPT) % HPC # (LBA / CX) % HPC
+		div word [Drive.headsPerCylinder]    ; (LBA / SPT) % HPC # (LBA / CX) % HPC
 		mov [$HEAD], dl
 		
 		; Cylinder
@@ -395,11 +393,11 @@ Drive:
 		
 		pop cx
 		pop si
+		
 		pop dx | pop bx
 		
-		mov sp, bp
-		pop bp	
-	ret }
+		LEAVEFN
+	}
 #endif
 
 print: {
@@ -438,4 +436,4 @@ lbaDAPS:
 	Drive.bufferPtr: resw 1 ; Destination buffer (0x2000)
 #endif
 
-@data:
+@bss:
