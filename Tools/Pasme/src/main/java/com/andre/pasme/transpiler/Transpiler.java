@@ -28,7 +28,7 @@ import java.util.Map;
 public class Transpiler {
 	static final Map<String, Integer> VARIABLES_SIZES = VariableTypes16.get();
 	static final String RODATA_SECTION_MARKER = "@rodata:";
-	static final String BSS_SECTION_MARKER = "@data:";
+	static final String BSS_SECTION_MARKER = "@bss:";
 	
 	/** Command line defines */
 	public Map<String, String> defines;   

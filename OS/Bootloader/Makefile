@@ -4,7 +4,6 @@ PartitionStart=0x10000
 
 # -- Tools --
 PASME=call scripts/pasme
-C_ASSEMBLER=../../Tools/GCC/bin/i386-elf-as.exe
 C_COMPILER=../../Tools/GCC/bin/i386-elf-gcc.exe
 
 # -- Flags --
@@ -63,9 +62,10 @@ build/bin/ZKLOADER.ELF: src/loader/link.ld build/loader/stub.o build/loader/core
 	${C_COMPILER} -T src/loader/link.ld -o build/bin/ZKLOADER.ELF build/loader/stub.o build/loader/core.o build/loader/vga_video.o build/loader/string.o build/loader/stdio.o ${CCFLAGS}
 
 # Assembly stub
-build/loader/stub.o: src/loader/stub.asm
+build/loader/stub.o: src/loader/stub.pa
 	-mkdir build\loader
-	yasm src/loader/stub.asm -o build/loader/stub.o -f elf
+	${PASME} transpile src/loader/stub.pa -to build/loader/stub.asm
+	yasm build/loader/stub.asm -o build/loader/stub.o -f elf
 
 # C Body
 build/loader/core.o: src/loader/core.c src/loader/core.h

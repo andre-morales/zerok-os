@@ -1,9 +1,10 @@
-%define LOADER_ARGS_SIZE 2
+#define LOADER_ARGS_SIZE 2
 
+EXTERN main
 GLOBAL _start
 GLOBAL loader_args
 
-EXTERN main
+var byte[$#LOADER_ARGS_SIZE#] loader_args
 
 [SECTION .text]
 _start:
@@ -21,7 +22,7 @@ _start:
 	; ESI is already set to point to loader args structure.
 	; CX should contain the size of the structure. If the passed size
 	; is different than the one declared here, halt.
-	cmp cx, LOADER_ARGS_SIZE
+	cmp cx, $#LOADER_ARGS_SIZE#
 	jne halt
 	
 	; Copy the structure to our BSS section.
@@ -79,4 +80,4 @@ enablePaging:
 ret
 
 [SECTION .bss]
-loader_args: resb LOADER_ARGS_SIZE
+@bss:
