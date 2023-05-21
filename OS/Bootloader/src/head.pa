@@ -97,15 +97,9 @@ start: {
 
 ; -- Load XTOS/BSTRAP.BIN
 Load_LdrHeadBin: {
-	mov ax, ."ZKOS       "
-	push ax
-	call FATFS.FindFileInRootDir
-	
-	Serial.Print(."\Nfound in cl: ")
-	Serial.PrintHexNum ax
-
-	mov si, ."ZKOS/BSTRAP  BIN"
-	call FATFS.FindFile
+	mov si, ."ZKOS       /BSTRAP  BIN"
+	push si
+	call FATFS.LocateFile
 	Print(."\NFound.")
 	
 	mov word [Drive.bufferPtr], 0x500
@@ -154,7 +148,7 @@ InitFileSystem: {
 	mov al, [FATFS.clusterBits]
 	call printDecNum
 	
-	Print(."\NBeginning: 0x")
+	Print(."\NStart: 0x")
 	PrintHexNum word [FATFS.beginningSct + 2]
 	Putch(':')
 	PrintHexNum word [FATFS.beginningSct]
@@ -169,21 +163,24 @@ InitFileSystem: {
 	Putch(':')
 	PrintHexNum word [FATFS.rootDirSct]
 
-	Print(."\NData Area: 0x")
+	Print(."\NData: 0x")
 	PrintHexNum word [FATFS.dataAreaSct + 2]
 	Putch(':')
 	PrintHexNum word [FATFS.dataAreaSct]
 	
-	Print(."\NReserved Lg. Sectors: ")
+	Print(."\NTotal L. Sectors: ")
+	PrintDecNum [FATFS.totalLogicalSectors] 
+	
+	Print(."\NReserved L. Sectors: ")
 	PrintDecNum [FATFS.reservedLogicalSectors] 
 	
-	Print(."\NBytes per Logical Sector: ")
+	Print(."\NBytes per L. Sector: ")
 	PrintDecNum [FATFS.bytesPerLogicalSector] 
 	Print(."\NLogical Sectors per Cluster: ")
 	PrintDecNum [FATFS.logicalSectorsPerCluster] 
 	Print(."\NBytes per Cluster: ")
 	PrintDecNum [FATFS.bytesPerCluster] 
-	Print(."\NLogical Sectors per FAT: ")
+	Print(."\NL. Sectors per FAT: ")
 	PrintDecNum [FATFS.logicalSectorsPerFAT] 
 	Print(."\NFATs: ")
 	PrintDecNum [FATFS.fats]

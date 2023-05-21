@@ -59,7 +59,7 @@ Drive.ReadSector: {
 	Serial.PrintHexNum [$sector_h]
 	Serial.Print(."_")
 	Serial.PrintHexNum [$sector_l]
-	
+
 	cmp byte [Drive.LBA.available], 0
 	jnz .LBAtoCHS ; LBA not supported. Try CHS translation.
 	

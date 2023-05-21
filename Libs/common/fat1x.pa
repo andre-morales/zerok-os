@@ -15,8 +15,8 @@ var void FATFS
 	var short .reservedLogicalSectors
 	var short .fats
 	var short .rootDirectoryEntries
-	var short .logicalSectorsPerFAT
 	var short .totalLogicalSectors
+	var short .logicalSectorsPerFAT
 	var char[12] .label
 
 	var short .directoryEntriesPerCluster
@@ -45,10 +45,10 @@ FATFS.Initialize: {
 	CLSTACK
 	farg byte* firstSectorPtr
 	ENTERFN
-	
+		
 	; Read all important stuff from BPB
-	mov si, [$firstSectorPtr]	
-	add si, 0x0B
+	mov bx, [$firstSectorPtr]
+	lea si, [bx + 0x0B]	
 	mov di, FATFS.BPB
 	
 	xor ah, ah
@@ -59,13 +59,14 @@ FATFS.Initialize: {
 	movsw         ; [11] Root Dir. Entries
 	
 	lodsw         ; [13] Total logical sectors
+	stosw
 	call .testClusterCount ; Discover type of FAT     
 	
 	inc si  
 	movsw         ; [16] Logical sectors per FAT
 	
 	; [2B] Volume label
-	add si, 0x11
+	lea si, [bx + 0x2B]	
 	mov cx, 11 | rep movsb
 	xor al, al | stosb
 	
@@ -131,6 +132,48 @@ FATFS.Initialize: {
 	LEAVEFN
 }
 
+; short (char* path)
+; Locates a file given its extended path.
+FATFS.LocateFile: {
+	CLSTACK
+	farg char* pathStr
+	ENTERFN
+	
+	mov si, [$pathStr]
+	push si
+	call FATFS.FindFileInRootDir
+	jc .notFound
+
+	.nextSegment:
+		add si, 11
+		mov cl, [si]
+		test cl, cl
+		jz .end
+		
+		cmp cl, '/'
+		jne .badPath
+		
+		inc si
+				
+		push ax
+		push si
+		call FATFS.FindFileInDir
+		
+		jc .notFound
+	jmp .nextSegment
+	
+	.notFound:
+	Print(."\NNot found.")
+	jmp Halt
+	
+	.badPath:
+	Print(."\NBad path.")
+	jmp Halt
+	
+	.end:
+	LEAVEFN
+}
+
 ; void (char* fileName)
 ; Finds a single file in the root directory.
 FATFS.FindFileInRootDir: {
@@ -140,6 +183,7 @@ FATFS.FindFileInRootDir: {
 	lvar short sectorsRemaining
 	ENTERFN
 	
+	push si
 	push word [Drive.bufferPtr]
 	mov word [Drive.bufferPtr], FATFS.clusterBuffer
 	
@@ -165,8 +209,6 @@ FATFS.FindFileInRootDir: {
 		; 16 Directory entries per sector
 		mov dl, 16
 		.entry:
-			BREAK
-		
 			call FATFS._TestFileEntry
 			jnc .found
 			
@@ -183,8 +225,58 @@ FATFS.FindFileInRootDir: {
 	
 	; Return with AX = 0 to indicate the entry wasn't found.
 	xor ax, ax
+	stc
 	
-	.found:	
+	.found:
+	.end:
+	pop word [Drive.bufferPtr]
+	pop si
+	LEAVEFN
+}
+
+/* short (char* fileName, short dirCluster)
+ * looks for a file entry within the directory
+ * stored at dirCluster */
+FATFS.FindFileInDir: {
+	CLSTACK
+	farg char* fileNameStr
+	farg short dirCluster
+	ENTERFN
+	
+	push word [Drive.bufferPtr]
+	mov word [Drive.bufferPtr], FATFS.clusterBuffer
+	
+	.readCluster:
+		push word [$dirCluster]
+		call FATFS.ReadCluster
+		
+		mov si, [$fileNameStr]
+		mov di, [Drive.bufferPtr]
+		
+		; 16 Directory entries per sector
+		mov dl, 16
+		.entry:
+			call FATFS._TestFileEntry
+			jnc .found
+			
+			add di, 32
+			
+			dec dl
+		jnz .entry
+		
+		push word [$dirCluster]
+		call FATFS.GetNextClusterOf
+		mov [$dirCluster], ax
+		jc .notFound
+	jmp .readCluster
+	
+	.notFound
+	Print(."not found")
+	jmp Halt
+	
+	.found:
+	Serial.Print(."\N[FS]Located in root")
+	
 	.end:
 	pop word [Drive.bufferPtr]
 	LEAVEFN
@@ -193,10 +285,10 @@ FATFS.FindFileInRootDir: {
 ; [SI] = file name | [DI] = ptr
 ; Destroys: AX, CX
 FATFS._TestFileEntry: {
-	Serial.Print(."\NTest: ")
-	Serial.PrintHexNum si
-	Serial.Print(." and ")
-	Serial.PrintHexNum di
+	;Serial.Print(."\NTest: ")
+	;Serial.PrintHexNum si
+	;Serial.Print(." and ")
+	;Serial.PrintHexNum di
 	
 	{
 		push cx
@@ -210,7 +302,7 @@ FATFS._TestFileEntry: {
 	}
 	jne .notEqual
 	
-	; Get cluster number, and return with no carry clear
+	; Get cluster number, and return with carry flag clear
 	mov ax, [di + 0x1A]
 	clc
 	ret
@@ -219,126 +311,6 @@ FATFS._TestFileEntry: {
 	.notEqual:
 	stc
 	ret 
-}
-
-FATFS.FindFile: {
-	CLSTACK
-	lvar char* pathStrPtr     | ; Full path string
-	lvar char[11] currentFile | ; Current file name we're searching for
-	lvar bool lastFile        | ; Is this the last file and the path walking is over
-	lvar word fileCluster     | ; The cluster of the file/directory we were looking for
-	ENTERFN
-
-	push di
-
-	mov byte [$lastFile], 0
-
-	mov [$pathStrPtr], si
-	mov byte [FATFS.inRootDirectory], 1
-	
-	; FATFS.directorySector = FATFS.rootDirSct
-	mov si, FATFS.rootDirSct
-	mov di, FATFS.directorySector
-	movsw
-	movsw
-	
-	mov ax, [FATFS.clusterBuffer]
-	mov word [Drive.bufferPtr], ax
-	
-	; Read first sector of root directory.
-	push word [FATFS.directorySector + 2]
-	push word [FATFS.directorySector + 0]
-	call Drive.ReadSector
-	
-	.ReadDirectory:
-	; Copy specific file name from the
-	; full path to currentFile
-	.GetFileName:
-	call FATFS._advanceNextFileInPath
-	
-	.LoadFileEntries:
-	mov si, [FATFS.clusterBuffer]
-	
-	cmp byte [FATFS.inRootDirectory], 1 | je .l3
-	mov cx, [FATFS.directoryEntriesPerCluster]
-	jmp .nextFileEntry
-	
-	.l3:
-	mov cx, 16
-	
-	.nextFileEntry:
-		push cx
-		lea di, [$currentFile]
-		xchg si, di
-		call FATFS._TestFileEntry
-		xchg si, di
-		pop cx
-	
-		jc .FileNotFound		
-
-		mov [$fileCluster], ax
-		
-		; Is this the last file on the path string?
-		cmp byte [$lastFile], 0 | je .FoundFolder
-
-		jmp .End
-		
-		.FoundFolder:
-		push ax
-		call FATFS.ReadCluster
-			
-		mov byte [FATFS.inRootDirectory], 0
-		jmp .ReadDirectory
-		
-		.FileNotFound:
-		add si, 32
-	loop .nextFileEntry
-	
-	.LoadNextSector:
-	Print(."LNS.")
-	cli | hlt
-	
-	; File not present on this sector.
-	.End:
-	pop di	
-	
-	mov sp, bp
-	pop bp
-ret $stack_args_size
-
-	.FileNotFoundOnDir:
-		jmp FileNotFoundOnDir
-	
-	FATFS._advanceNextFileInPath: {
-		mov si, [$pathStrPtr]
-		lea di, [$currentFile]
-		mov cx, 12
-		.nextch:
-			lodsb
-			cmp al, '/' | je .lastch
-			test al, al | jz .lastfile
-						
-			stosb
-		loop .nextch
-		
-		Print(."\NERR BAD_PATH")
-		int 30h ; Path isn't over in 11 characters. 
-		
-		.lastfile:
-		mov byte [$lastFile], 1
-		
-		.lastch:
-		mov [$pathStrPtr], si
-		
-		dec cx
-		jcxz .end
-		
-		; Fill the rest of the path with spaces
-		mov al, ' '
-		rep stosb
-		
-		.end:
-	ret }
 }
 
 ; void (short cluster)
@@ -354,12 +326,14 @@ FATFS.ReadCluster: {
 	
 	Serial.Print(."\N[FS] Cls ")
 	Serial.PrintHexNum ax
+	Serial.Print(." to ")
+	Serial.PrintHexNum word [Drive.bufferPtr]
 	
 	; If cluster number <= 2, it is invalid.
 	cmp ax, 2
 	jg .read
 		
-	Print(."\Bad cluster.\N")
+	Print(."\NBad cluster.")
 	jmp Halt
 	
 	.read:
