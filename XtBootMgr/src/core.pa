@@ -16,8 +16,8 @@
 ; -- [0x1B00 - 0x1C00] Partition array
 ; -- [0x2000] Generic stuff buffer
 
-#include "version.pah"
-#include <common/console.pah>
+#include "version.h"
+#include <common/console.h>
 
 var short cursor
 var byte partitionMapSize
@@ -721,4 +721,4 @@ PartitionTypeNamePtrArr: {
 times 7*512-($-$$) db 0x90 ; Fill rest of stage 2 with no-ops. (For alignment purposes.)
 
 SECTION .bss
-@data:
+@bss:

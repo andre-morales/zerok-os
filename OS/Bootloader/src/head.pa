@@ -24,9 +24,9 @@
 #define CONSOLE_MIRROR_TO_SERIAL 1
 
 ; Include a few macro definition files
-#include "version.pah"
-#include <common/console.pah>
-#include <common/serial.pah>
+#include "version.h"
+#include <common/console.h>
+#include <common/serial.h>
 SECTION .text vstart=0x6000
 
 ; Stores in the file our signature and sector count which

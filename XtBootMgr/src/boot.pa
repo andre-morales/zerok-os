@@ -1,7 +1,7 @@
 ; Author:   André Morales 
-; Version:  1.1.1
+; Version:  1.2
 ; Creation: 06/10/2020
-; Modified: 30/04/2023
+; Modified: 22/05/2023
 
 %define BEGIN_ADDR 0x7C00
 %define STAGE2_SEGMENT 0xA0
@@ -12,15 +12,15 @@
 [CPU 8086]
 [BITS 16]
 
-#include "version.pah"
+#include "version.h"
 #define CONSOLE_MINIMAL 1
-#include <common/console.pah>
+#include <common/console.h>
 
 SECTION .text vstart=BEGIN_ADDR
 entry:	
 	; Clear segment registers and set up the stack right behind us.
 	cli ; Prevent interrupts while the stack is being setup
-	mov dl, 0x90
+
 	xor cx, cx
 	mov ds, cx
 	mov es, cx
@@ -130,4 +130,4 @@ jmp halt }
 %xdefine padding (440 - ($ - $$))
 times padding db 0x90 ; Fill the rest of the boostsector code with no-ops
 
-@data:
+@bss:

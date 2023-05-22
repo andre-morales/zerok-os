@@ -10,8 +10,8 @@
 [CPU 8086]
 [ORG 0x7C00]
 
-#include "version.pah"
-#include <common/console.pah>
+#include "version.h"
+#include <common/console.h>
 
 ; -- [...    - 0x06FF] Stack
 ; -- [0x6000 -   ... ] Where Stage 2 will be loaded.

@@ -20,9 +20,9 @@
 
 
 #define CONSOLE_MIRROR_TO_SERIAL 1
-#include "version.pah"
-#include <common/console.pah>
-#include <common/serial.pah>
+#include "version.h"
+#include <common/console.h>
+#include <common/serial.h>
 
 %define FAT16_CLUSTER_BUFFER_ADDR 0x1200
 %define STAGE4_FILE_ADDR 0x2000
