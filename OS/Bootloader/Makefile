@@ -14,12 +14,9 @@ PT_FLAGS=-I ../../Libs
 PA_FLAGS=-w-pp-macro-redef-multi
 
 # Flags for just the GCC compiler
-CCFLAGS=-ffreestanding -nostdlib -lgcc
+CCFLAGS=-ffreestanding -nostdlib -lgcc -Isrc/loader/stdlib -std=gnu99
 
-
-
-
-.PHONY: all boot_lba boot_chs head bstrap loader mountdisk unmountdisk clean
+.PHONY: all boot_lba boot_chs head bstrap loader loader_stdlib mountdisk unmountdisk clean
 
 all: boot_lba head bstrap loader
 
@@ -58,8 +55,8 @@ loader: build/bin/ZKLOADER.ELF
 	$(call unmount-test-disk)
 
 # Final binary
-build/bin/ZKLOADER.ELF: src/loader/link.ld build/loader/stub.o build/loader/core.o build/loader/vga_video.o build/loader/string.o build/loader/stdio.o 
-	${C_COMPILER} -T src/loader/link.ld -o build/bin/ZKLOADER.ELF build/loader/stub.o build/loader/core.o build/loader/vga_video.o build/loader/string.o build/loader/stdio.o ${CCFLAGS}
+build/bin/ZKLOADER.ELF: loader_stdlib src/loader/link.ld build/loader/stub.o build/loader/core.o build/loader/vga_video.o build/loader/lmem.o build/loader/acpi.o
+	${C_COMPILER} -T src/loader/link.ld -o build/bin/ZKLOADER.ELF build/loader/stub.o build/loader/core.o build/loader/vga_video.o build/loader/lmem.o build/loader/acpi.o build/loader/stdlib/string.o build/loader/stdlib/stdio.o ${CCFLAGS}
 
 # Assembly stub
 build/loader/stub.o: src/loader/stub.pa
@@ -74,11 +71,22 @@ build/loader/core.o: src/loader/core.c src/loader/core.h
 build/loader/vga_video.o: src/loader/vga_video.c src/loader/vga_video.h
 	${C_COMPILER} -c src/loader/vga_video.c -o build/loader/vga_video.o ${CCFLAGS}
 
-build/loader/string.o: src/loader/string.c src/loader/string.h
-	${C_COMPILER} -c src/loader/string.c -o build/loader/string.o ${CCFLAGS}
+build/loader/lmem.o: src/loader/lmem.c src/loader/lmem.h
+	${C_COMPILER} -c src/loader/lmem.c -o build/loader/lmem.o ${CCFLAGS}
 
-build/loader/stdio.o: src/loader/stdio.c src/loader/stdio.h
-	${C_COMPILER} -c src/loader/stdio.c -o build/loader/stdio.o ${CCFLAGS}
+build/loader/acpi.o: src/loader/acpi.c src/loader/acpi.h
+	${C_COMPILER} -c src/loader/acpi.c -o build/loader/acpi.o ${CCFLAGS}
+
+#Loader Stdlib
+loader_stdlib: build/loader/stdlib/string.o build/loader/stdlib/stdio.o
+
+
+build/loader/stdlib/string.o: src/loader/stdlib/string.c src/loader/stdlib/string.h
+	-mkdir build\loader\stdlib
+	${C_COMPILER} -c src/loader/stdlib/string.c -o build/loader/stdlib/string.o ${CCFLAGS}
+
+build/loader/stdlib/stdio.o: src/loader/stdlib/stdio.c src/loader/stdlib/stdio.h
+	${C_COMPILER} -c src/loader/stdlib/stdio.c -o build/loader/stdlib/stdio.o ${CCFLAGS}
 
 
 clean:

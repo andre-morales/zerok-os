@@ -5,19 +5,20 @@
  * Creation: 02/01/2021
  * Modified: 25/01/2022 */
 
-
-
 [BITS 16]
 [CPU 386]
 [ORG 0x500]
 
 ; Physical Map
-; -- [ 500] GDT / Stack
-; -- [ 700] Stage 3 (us)
-; -- [1200] FAT16 Cluster Buffer
-; -- [2000] Stage 4 file will be loaded here
-; -- [3000] Stage 4 code starts here
-
+; -- [  0  -  400] IVT
+; -- [ 400 -  500] Data Area
+; -- [ 500 -  520] CPU Structures
+; -- [	 .....	 ] 
+; -- [ 700 -   # ] Stage 3 (us)
+; -- [1200 -   # ] FAT16 Cluster Buffer
+; -- [2000 -   # ] Stage 4 file will be loaded here
+; -- [3000 -  ...] Stage 4 code starts here
+; -- [ ... - 7FF0] Stack
 
 #define CONSOLE_MIRROR_TO_SERIAL 1
 #include "version.h"
@@ -28,7 +29,6 @@
 %define STAGE4_FILE_ADDR 0x2000
 %define STAGE4_EXEC_ADDR 0x3000
 
-
 var short ELF.fileLocation
 var int ELF.entryPoint
 var int ELF.progHeaderTable
@@ -36,10 +36,21 @@ var word ELF.progHeaderSize
 var word ELF.progHeaderCount
 
 ; Variables to be passed to XtLoader
-%define LOADER_STRUCT_SIZE 2
+%define LOADER_STRUCT_SIZE 13
 var void LoaderStruct
+	; 2 Bytes
+	var char[2] .signature
+	
+	; 2 Bytes
 	var byte vidmode.columns
 	var byte vidmode.id
+	
+	; 9 Bytes
+	var byte pci.majorVer
+	var byte pci.minorVer
+	var short pci.props
+	var byte pci.lastBus
+	var int pci.entry
 var void LoaderStruct.end
 
 SECTION stack vstart=0x500 progbits
@@ -82,9 +93,9 @@ dw Drive ; Stores in the binary a pointer to the beginning of the Drive variable
 dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
 
 start: {
-	mov sp, 0x6F0
+	mov sp, 0x7CF0
 
-	Print(."\N-- ZkLoader Head $#VERSION#")
+	Print(."\n-- &bZk&3Loader &2Bootstrap &cv$#VERSION#\n")
 	
 	; Initialize serial
 	call Serial.init	
@@ -92,18 +103,19 @@ start: {
 	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
 
-	Print(."\NLoading ZKLOADER.ELF\N")
+	Log(."I Loading ZKLOADER.ELF\n")
 	mov si, ."ZKOS/ZKLOADERELF"
 	mov di, STAGE4_FILE_ADDR
+	
 	call ReadFile
-		
+	Log(."K Executable loaded.\n")
+	
 	mov word [ELF.fileLocation], STAGE4_FILE_ADDR
 	call LoadELF
-	Print(."\NExecutable loaded.")
-
-	call GetInfo
 	
-	Print(."\NPress any key to execute XtLdr32.")
+	call PrepareLoaderInfo
+	
+	Log(."I Press any key to execute XtLdr32.\n")
 	call WaitKey
 	jmp Enable32
 }
@@ -118,27 +130,65 @@ ReadFile: {
 	call FATFS.ReadClusterChain	
 ret }
 
-GetInfo: {
-	; Get current video mode
+PrepareLoaderInfo: {
+	Log(.". Acquiring info...\n")
+	
+	; Signature
+	mov word [LoaderStruct.signature], 'Zk'
+
+	call GetVideoMode
+	call CheckPCI	
+	Log(."K All info saved.\n")
+ret }
+
+GetVideoMode: {
+	Log(."I Video Mode: ")
+	
 	mov ah, 0Fh | int 10h
 	mov byte [vidmode.id], al
 	mov byte [vidmode.columns], ah
 	
-	mov al, ah
 	xor ah, ah
-	
-	Print(."\NVideo columns: ")
 	PrintDecNum ax
 	
-	mov al, [vidmode.id]
-	Print(."\NVideo mode: ")
+	Print(." / ")
+	
+	mov al, [vidmode.columns]	
 	PrintDecNum ax
+	Print(."\n")
+ret }
+
+CheckPCI: {
+	Log(.". Checking PCI support.\n")
+
+	; PCI Support
+	xor edi, edi
+	mov ax, 0xB101
+	int 1Ah
+	
+	jc .noSupport
+	test ah, ah | jnz .noSupport
+	cmp edx, 20494350h | jne .noSupport
+	
+	; Copy info and return
+	mov [pci.entry], edi
+	mov [pci.props], al
+	mov [pci.majorVer], bh
+	mov [pci.minorVer], bl
+	mov [pci.lastBus], cl
+	ret
+	
+	.noSupport:
+	; Zero-out version numbers
+	xor al, al
+	mov [pci.majorVer], al
+	mov [pci.minorVer], al
+	
+	.end:
 ret }
 
 Enable32: {
-	Print(."\NEntering 32-bit...")
-	
-	BREAK
+	Log(.". Entering 32-bit...\n")
 	
 	cli             ; Interrupts clear.
 	lgdt [GDT_Desc] ; Load GDT
@@ -192,9 +242,10 @@ LoadELFHeader: {
 	mov ax, [bx + 44]
 	mov [ELF.progHeaderCount], ax
 	
-	Print(."\NEntry Point: 0x")
+	Log(."I Image properties:\n")
+	Print(."  Entry Point: 0x")
 	PrintHexNum word [ELF.entryPoint]
-	Print(."\N")
+	Print(."\n  ")
 	PrintDecNum [ELF.progHeaderCount]
 	Print(." entries of ")
 	PrintDecNum [ELF.progHeaderSize]
@@ -242,17 +293,19 @@ LoadSegment: {
 	movsw
 	movsw
 	
-	Print(."\Np_offset ")
+	Print(."\n  p_offset ")
 	PrintDecNum [p_offset]
 	
-	Print(."\Np_vaddr ")
+	Print(."\n  p_vaddr ")
 	PrintDecNum [p_vaddr]
 	
-	Print(."\Np_filesz ")
+	Print(."\n  p_filesz ")
 	PrintDecNum [p_filesz]
 	
-	Print(."\Np_memsz ")
+	Print(."\n  p_memsz ")
 	PrintDecNum [p_memsz]
+	
+	Print(."\n")
 	
 	; Load segment into ram
 	mov bx, [ELF.fileLocation]
@@ -268,17 +321,17 @@ LoadSegment: {
 ret }
 
 NotAnElf: {
-	Print(."\NNot an ELF file!");
+	Print(."\nNot an ELF file!");
 	jmp Halt
 }
 
 Halt: {
-	Print(."\NHalted.\N")
+	Print(."\nHalted.\n")
 	cli | hlt
 }	
 	
 FileNotFoundOnDir: {
-	Print(."\NFile '")
+	Print(."\nFile '")
 	;mov si, [FATFS.filePathPtr]
 	call print
 	

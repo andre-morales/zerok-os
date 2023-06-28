@@ -1,46 +1,72 @@
 #include "core.h"
 #include "vga_video.h"
-#include "string.h"
+#include "lmem.h"
+#include "acpi.h"
 #include "stdio.h"
+#include "string.h"
 
-extern char loader_args[2];
+/**
+ * [ 0   -  500] BIOS Stuff
+ * [500  -  #  ] Stack
+ * [1000 -  #  ] Page Directory
+ * [2000 -  #  ] Page Table
+ * [3000 - ... ] ZkLoader
+ */
 
-void main(){
-	// Load stuff passed by previous stages
-	loadInitStructure(loader_args);
-		
+void pci_init() {
+	uint8_t major = loader_args.pciMajorVer;
+	uint8_t minor = loader_args.pciMinorVer;
+
+	if (major == 0 && minor == 0) {
+		log(LOG_ERROR, "PCI: Not supported.\n");
+		return;
+	}
+
+	log(LOG_OK, "PCI: Version %i.%i\n", (int)major, (int)minor);
+}
+
+void main() {	
+	bool init = loadInitArgs();
+	setupIO();
+	
+	printf("\n\n-- &bZk&3Loader &eCore32\n");
+
+	if (!init) {
+		log(LOG_ERROR, "Invalid loader arguments.\n");
+		return;
+	}
+
+	acpi_find();
+	pci_init();
+	log(LOG_OK,	"Done.\n");
+}
+
+/** Loads stuff passed by previous stages */
+bool loadInitArgs() {
+	char* signature = (char*)&loader_args;
+
+	if (signature[0] != 'Z' || signature[1] != 'k') {
+		video.columns = 80;
+		video.mode = 3;
+		return false;
+	}
+
+	video.columns = loader_args.vidColumns;
+	video.mode = loader_args.vidMode;
+	return true;
+}
+
+void setupIO() {
 	// Setup vga video
 	video_init();
 	video.cur_x = 0;
 	video.cur_y = 24;
 
-	print("\n\n-- ZkLoader 32 --");
-	print("\nReached protected mode.");
-	print("\nBinary version 2.");
-}
-
-void loadInitStructure(uint8_t* args){
-	video.columns = args[0];
-	video.mode = args[1];
-}
-
-void map(int virtual, int physical){
-	void* const PAGE_TABLE = (void*)0x2000;
-
-	uint32_t flags = 0b000000010111;
-	uint32_t entry = flags + physical * 4096;
-
-	uint32_t* ptr = (uint32_t*)(PAGE_TABLE + virtual * 4);
-
-	*ptr = entry;
-	reload_page_directory();	
+	// Set stdout to video_print
+	stdout_procs[0] = &video_print;
 }
 
 void breakpoint() {
 	asm volatile ("xchg %bx, %bx");
 }
 
-void reload_page_directory(){
-	asm volatile ("movl %%cr3, %%eax;\n\t"
-		"movl %%eax, %%cr3; \n\t" : : : "eax");
-}

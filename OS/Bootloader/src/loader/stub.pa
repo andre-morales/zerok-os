@@ -1,13 +1,14 @@
-#define LOADER_ARGS_SIZE 2
+#define LOADER_ARGS_SIZE 13
 
 EXTERN main
+
 GLOBAL _start
 GLOBAL loader_args
 
 var byte[$#LOADER_ARGS_SIZE#] loader_args
 
 [SECTION .text]
-_start:
+_start: {
 	; Set all segments to 0x10
 	mov ax, 0x10
 	mov ds, ax
@@ -19,26 +20,43 @@ _start:
  	; Prepare stack
 	mov esp, 0xFF0
 	
+	call copyLoaderStruct
+	call setupPagingStructures
+	call enablePaging	
+	call main		
+	jmp halt
+}
+
+copyLoaderStruct: {
 	; ESI is already set to point to loader args structure.
-	; CX should contain the size of the structure. If the passed size
-	; is different than the one declared here, halt.
+	; CX should contain the size of the structure.
+	;
+	; If the structure signature is invalid or the passed size
+	; is different than the one declared here, mark the structure
+	; as invalid.
+	cmp word [esi], 'Zk'
+	jne .badSignature	
+	
 	cmp cx, $#LOADER_ARGS_SIZE#
-	jne halt
+	jne .badSignature
 	
 	; Copy the structure to our BSS section.
 	mov edi, loader_args
 	rep movsb
-	
-	call setupPagingStructures
-	call enablePaging	
-	call main		
+ret
 
-halt:
+	.badSignature:
+		mov word [loader_args], 0xBAD
+	ret
+}
+
+halt: {
 	cli 
 	hlt
 	jmp halt
+}
 
-setupPagingStructures:
+setupPagingStructures: {
 	; -- Page directory at 0x1000 --
 	mov edi, 0x1000
 
@@ -66,9 +84,9 @@ setupPagingStructures:
 	xor eax, eax
 	mov ecx, 1008
 	rep stosd
-ret
+ret }
 
-enablePaging:
+enablePaging: {
 	; Set paging directory location
 	mov eax, 0x1000
 	mov cr3, eax
@@ -77,7 +95,7 @@ enablePaging:
 	mov eax, cr0
 	or eax, 0x80000000
 	mov cr0, eax
-ret
+ret }
 
 [SECTION .bss]
 @bss:
