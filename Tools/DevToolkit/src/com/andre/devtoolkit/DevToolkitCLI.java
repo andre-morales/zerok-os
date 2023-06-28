@@ -1,19 +1,16 @@
-package com.andre.pasme;
+package com.andre.devtoolkit;
 
-import com.andre.pasme.transpiler.Transpiler;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Scanner;
 
 /**
- * CLI interface of Pasme. It must be instantiated and have its run() method
+ * CLI interface of DevToolkit. It must be instantiated and have its run() method
  * called with an order.
  * <br>
  * <br> Last edit: 30/04/2023
@@ -21,12 +18,10 @@ import java.util.Scanner;
  * @author André Morales
  * @version 1.1.0
  */
-public class PasmeCLI {
-	public static final String VERSION_STR = "1.2.1";
-	private static final String ASSEMBLER_CMD = "YASM";	
-	
+public class DevToolkitCLI {
+	public static final String VERSION_STR = "0.1.0";
 	/**
-	 * Runs Pasme with CLI arguments
+	 * Runs DevToolkit with CLI arguments
 	 * 
 	 * @param args Arguments.
 	 */
@@ -41,8 +36,7 @@ public class PasmeCLI {
 	}
 	
 	/**
-	 * Interprets an order. An order could be to transpile, to assemble,
-	 * to burn an image.
+	 * Interprets an order.
 	 * 
 	 * @param orderLine An order followed by its switches and arguments.
 	 */
@@ -51,102 +45,11 @@ public class PasmeCLI {
 		
 		switch(order) {
 		case "help" -> helpOrder(orderLine);
-		case "transpile" -> transpileOrder(orderLine);
-		case "assemble" -> assembleOrder(orderLine);
 		case "burn" -> burnOrder(orderLine);
+		case "mountdisk" -> mountDiskOrder(orderLine);
+		case "unmountdisk" -> unmountDiskOrder(orderLine);
 		default -> throw new CLIException("Unknown order type [" + order + "].");
 		}
-	}
-	
-	/**
-	 * Invokes the Assembler program on an input .asm file and saves
-	 * the resulting binary.
-	 * <br><br>
-	 * Switches: <br>
-	 * -to: Specifies where to save the assembled binary.
-	 * 
-	 * @param orderLine An assemble order and its arguments.
-	 */
-	void assembleOrder(String[] orderLine) {
-		String input = null;
-		String output = null;
-		
-		// Interpret order arguments
-		for (int i = 1; i < orderLine.length; i++) {
-			var arg = orderLine[i];
-			
-			if (arg.startsWith("-")) {
-				switch (arg) {
-					case "-to" -> output = orderLine[++i];
-				}
-			} else {
-				if (input != null) {
-					throw new CLIException("Argument " + arg + " specifies an input but an input was already provided before.");
-				}
-				
-				input = arg;
-			}
-		}
-		
-		if (input == null) throw new CLIException("No input was specified!");
-		if (output == null) throw new CLIException("No output was specified! Use the -to switch do so.");
-		
-		System.out.println("Assembling '" + input + "' to '" + output + "'");
-		try {
-			int result = exec(ASSEMBLER_CMD, input, "-o" + output);
-			if (result != 0) {
-				throw new AssemblerException("Assembling failed! Assembler returned [" + result + "]");
-			}
-		} catch (ProgramNotFoundException e){
-			throw new RuntimeException("Failed to run the assembler program [" + ASSEMBLER_CMD + "]. Is it installed on PATH?", e);
-		}
-	}
-
-	/**
-	 * Invokes the Pasme transpiler on an input file and saves
-	 * the resulting assembly on another file.
-	 * <br><br>
-	 * Switches: <br>
-	 * -to: Specifies where to save the .asm file
-	 * -I: Specifies an include directory
-	 * -D: Defines a preprocessor string 
-	 * 
-	 * @param orderLine A transpile order followed by its switches and arguments.
-	 */
-	void transpileOrder(String[] orderLine) {
-		String input = null;
-		String output = null;
-		List<String> includes = new ArrayList<>();
-		Map<String, String> defines = new HashMap<>();
-		
-		// Interpret order arguments
-		for (int i = 1; i < orderLine.length; i++) {
-			var arg = orderLine[i];
-			
-			if (arg.startsWith("-")) {
-				switch (arg) {
-					case "-to" -> output = orderLine[++i];
-					case "-I" -> includes.add(orderLine[++i]);
-					case "-D" -> defines.put(orderLine[++i], "1");
-				}
-			} else {
-				if (input != null) {
-					throw new CLIException("Argument " + arg + " specifies an input but an input was already provided before.");
-				}
-				
-				input = arg;
-			}
-		}
-		
-		if (input == null) throw new CLIException("No input was specified!");
-		if (output == null) throw new CLIException("No output was specified! Use the -to switch do so.");
-		
-		System.out.println("Transpiling '" + input + "' to '" + output + "'");
-		
-		var tr = new Transpiler();
-		tr.includePaths = includes;
-		tr.defines = defines;
-		tr.transpile(new File(input), new File(output));
 	}
 	
 	/**
@@ -242,6 +145,91 @@ public class PasmeCLI {
 	}
 	
 	/**
+	 * Mounts a virtual disk file. Requires no switches, only an input argument.
+	 */
+	void mountDiskOrder(String[] order) {
+		String diskPathArg = null;
+		
+		// Interpret order arguments
+		for (int i = 1; i < order.length; i++) {
+			var arg = order[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (diskPathArg != null) {
+					throw new CLIException("Argument " + arg + " specifies a disk but a disk was already provided before.");
+				}
+				
+				diskPathArg = arg;
+			}
+		}
+		
+		if (diskPathArg == null) throw new CLIException("No disk was specified!");
+		
+		try {
+			var absDiskPath = new File(diskPathArg).getCanonicalPath();
+			
+			var script = Files.createTempFile(null, ".dps");
+			var writer = new FileWriter(script.toFile());
+			
+			writer.write("select vdisk file=\"" + absDiskPath + "\"\n");
+			writer.write("attach vdisk");
+			
+			writer.close();
+			
+			int returnCode = execSilently("diskpart", "/s", script.toString());
+			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	/**
+	 * Unmounts a virtual disk file. Requires no switches, only an input argument.
+	 */
+	void unmountDiskOrder(String[] order) {
+		String diskPathArg = null;
+		
+		// Interpret order arguments
+		for (int i = 1; i < order.length; i++) {
+			var arg = order[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (diskPathArg != null) {
+					throw new CLIException("Argument " + arg + " specifies a disk but a disk was already provided before.");
+				}
+				
+				diskPathArg = arg;
+			}
+		}
+		
+		if (diskPathArg == null) throw new CLIException("No disk was specified!");
+		
+		try {
+			var absDiskPath = new File(diskPathArg).getCanonicalPath();
+			
+			var script = Files.createTempFile(null, ".dps");
+			var scriptFile = script.toFile();
+			try (var writer = new FileWriter(scriptFile)) {
+				writer.write("select vdisk file=\"" + absDiskPath + "\"\n");
+				writer.write("detach vdisk");
+			}
+			
+			int returnCode = execSilently("diskpart", "/s", script.toString());
+			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	/**
 	 * Prints the CLI help text on the console.
 	 * 
 	 * @param orderLine Ignored as of this version.
@@ -260,7 +248,7 @@ public class PasmeCLI {
 		
 	/** Prints the Pasme header with version. */
 	void printHeader() {
-		System.out.println("-- Pasme Version " + VERSION_STR);
+		System.out.println("-- DevToolkit Version " + VERSION_STR);
 	}
 	
 	/**

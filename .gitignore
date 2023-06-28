@@ -6,3 +6,6 @@
 /OS/Bootloader/build/
 /Tools/Pasme/target/
 .vs
+/Tools/DevToolkit/nbproject/private/
+/Tools/DevToolkit/build/
+/Tools/DevToolkit/dist/
