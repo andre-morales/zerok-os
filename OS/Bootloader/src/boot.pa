@@ -351,8 +351,8 @@ Drive:
 		lvar byte HEAD
 		ENTERFN
 		
-		; Save LBA
-		push bx | push dx
+		push bx ; [BP - 6]
+		push dx ; [BP - 8]
 		
 		push si
 		push cx
@@ -360,7 +360,7 @@ Drive:
 		; -- Reading as CHS (Convert LBA to CHS) --
 		; Calculate cylinder
 		mov dx, [bp - 6]					 ; Get LBA
-		mov ax, [bp - 8]  
+		mov ax, [bp - 8]   
 		div word [Drive.sectorsTimesHeads]   ; LBA / (HPC * SPT)
 		mov [$CYLINDER], ax                  ; Save Cylinders
 		
@@ -373,27 +373,36 @@ Drive:
 		inc dx
 		mov [$SECTOR], dl
 		
-		; Calculate head to BP - 4
+		; Calculate head index
 		xor dx, dx
 		div word [Drive.headsPerCylinder]    ; (LBA / SPT) % HPC # (LBA / CX) % HPC
 		mov [$HEAD], dl
 		
+		
+		; Now restore the values calculated to read a sector
+		; CH = Cylinder
+		; CL = Sector
+		; DH = Head
+		; DL = Drive
+		
 		; Cylinder
 		mov ax, [$CYLINDER]
 		xchg ah, al
-		mov cl, 6 | shl al, cl 
+		mov cl, 6
+		shl al, cl 
 		mov cx, ax
 		
-		or cl, [$SECTOR] ; Sector
-		mov dh, [$HEAD]  ; Head
+		; Sector (6 bits)
+		or cl, [$SECTOR]
+		
+		; Head
+		mov dh, [$HEAD]
 		
 		mov bx, [Drive.bufferPtr]
 		mov dl, [Drive.id]
 		mov ax, 0x02_01 | int 13h ; CHS read
 		
-		pop cx
-		pop si
-		
+		pop cx | pop si
 		pop dx | pop bx
 		
 		LEAVEFN

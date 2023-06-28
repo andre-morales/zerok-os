@@ -1,6 +1,6 @@
 ENTRY(_start)
 
-SECTIONS{
+SECTIONS {
 	. = 0x3000;
 	.text : {
 		*(.text)

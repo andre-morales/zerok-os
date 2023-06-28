@@ -33,11 +33,9 @@ Serial.init: {
 	
 	mov byte [Serial.initialized], 0x01
 	outb PORT+4, 0x0F
-	Print ."\n[Serial] Initialized."
 	jmp .end
 	
 .failure:
-	Print ."\n[Serial] Failed."
 	jmp .end
 	
 .end:

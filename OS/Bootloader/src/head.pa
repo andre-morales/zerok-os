@@ -56,10 +56,11 @@ start: {
 	mov [Drive.id], dl
 	
 	; Print header
-	Print(."\N         ZkOS Bootloader v$#VERSION#")
+	Print(."\n-- &bZk&3Loader &4Head &cv$#VERSION#\n")
 	
 	; Initialize serial
 	call Serial.init	
+	ClassLog(."I Serial ready.\n")
 	
 	; Configure a buffer region and temporary storage to process the file system
 	mov word [Drive.bufferPtr], 0x0500
@@ -68,7 +69,13 @@ start: {
 	call InitDrive
 	call InitFileSystem
 	
-	Print(."\NPress any key to load BSTRAP.BIN.")
+	;0 ..
+	;1 Ok
+	;2 In
+	;3 Wr
+	;4 ER
+	
+	ClassLog(."I Press any key to load BSTRAP.BIN.\n")
 	call WaitKey
 	call Load_LdrHeadBin
 
@@ -84,14 +91,13 @@ start: {
 	mov cx, FATFS.vars_end - FATFS
 	rep movsb 
 	
-	Print(."OK.")
-	
 	cmp word [0x500], 'Zk' | je .jump
-	Print(."\NInvalid signature")
+	ClassLog(."E Invalid signature.\n")
 	int 0x30
 
 ; Jump to Stage 3.
 .jump:
+	ClassLog(.". Jumping...\n")
 	jmp 0x700
 }
 
@@ -100,19 +106,19 @@ Load_LdrHeadBin: {
 	mov si, ."ZKOS       /BSTRAP  BIN"
 	push si
 	call FATFS.LocateFile
-	Print(."\NFound.")
+	ClassLog(."K Found.\n")
 	
 	mov word [Drive.bufferPtr], 0x500
 	
 	push ax
 	call FATFS.ReadClusterChain
 	
-	Print(." Loaded.\N")
+	ClassLog(."K Loaded.\n")
 ret }
 
 FileNotFoundOnDir: {
 	push si
-	Print(."\NFile '")
+	Print(."\nFile '")
 	;mov si, [FATFS.filePathPtr]
 	pop si
 	call print
@@ -123,12 +129,12 @@ FileNotFoundOnDir: {
 
 
 Halt: {
-	Print(."\NSystem halted.")
+	Log(."E System halted.")
 	cli | hlt
 }
 
 InitFileSystem: {
-	Print(."\N--- [Boot partition properties] ---")
+	ClassLog(."I Partition config:")
 	
 	push ds 
 	
@@ -140,7 +146,7 @@ InitFileSystem: {
 	
 	pop ds	
 	
-	Print(."\NFAT")
+	Print(."\n  FAT")
 	
 	xor ah, ah
 	mov al, [FATFS.clusterBits]
@@ -149,43 +155,44 @@ InitFileSystem: {
 	Print(.": ")
 	Print(FATFS.label)
 	
-	Print(."\NStart: 0x")
+	Print(."\n  Start: 0x")
 	PrintHexNum word [FATFS.beginningSct + 2]
 	Putch(':')
 	PrintHexNum word [FATFS.beginningSct]
 	
-	Serial.Print(."\NFAT: 0x")
+	Serial.Print(."\n  FAT: 0x")
 	Serial.PrintHexNum word [FATFS.fatSct + 2]
 	Serial.Print(':')
 	Serial.PrintHexNum word [FATFS.fatSct]
 	
-	Serial.Print(."\NRoot Dir: 0x")
+	Serial.Print(."\n  Root Dir: 0x")
 	Serial.PrintHexNum word [FATFS.rootDirSct + 2]
 	Serial.Print(':')
 	Serial.PrintHexNum word [FATFS.rootDirSct]
 
-	Serial.Print(."\NData: 0x")
+	Serial.Print(."\n  Data: 0x")
 	Serial.PrintHexNum word [FATFS.dataAreaSct + 2]
 	Serial.Print(':')
 	Serial.PrintHexNum word [FATFS.dataAreaSct]
 	
-	Print(."\NReserved L. Sectors: ")
+	Print(."\n  Reserved L. Sectors: ")
 	PrintDecNum [FATFS.reservedLogicalSectors] 
 	
-	Print(."\NTotal L. Sectors: ")
+	Print(."\n  Total L. Sectors: ")
 	PrintDecNum [FATFS.totalLogicalSectors] 
 	
-	Print(."\NFATs: ")
+	Print(."\n  FATs: ")
 	PrintDecNum [FATFS.fats]
 	
-	Print(."\NBytes per L. Sector: ")
+	Print(."\n  Bytes per L. Sector: ")
 	PrintDecNum [FATFS.bytesPerLogicalSector] 
-	Print(."\NL. Sectors per Cluster: ")
+	Print(."\n  L. Sectors per Cluster: ")
 	PrintDecNum [FATFS.logicalSectorsPerCluster] 
-	Print(."\NBytes per Cluster: ")
+	Print(."\n  Bytes per Cluster: ")
 	PrintDecNum [FATFS.bytesPerCluster] 
-	Print(."\NL. Sectors per FAT: ")
+	Print(."\n  L. Sectors per FAT: ")
 	PrintDecNum [FATFS.logicalSectorsPerFAT] 
+	Print(."\n")
 ret }
 
 InitDrive: {	
@@ -193,44 +200,45 @@ InitDrive: {
 	call Drive.CHS.GetProperties
 	call Drive.LBA.GetProperties
 
-	Print(."\N--- [Geometries of drive: ")
+	ClassLog(."I Drive [")
 	xor ah, ah
 	mov al, [Drive.id]
 	PrintHexNum(ax)
-	Print(."] ---")
+	Print(."] geometry:")
 	
-	Print(."\NCHS (AH = 02h)")
-	Print(."\N  Bytes per Sector: ")
+	Print(."\n CHS (AH = 02h)")
+	Print(."\n  Bytes per Sector: ")
 	PrintDecNum [Drive.CHS.bytesPerSector]
 	
-	Print(."\N  Sectors per Track: ")
+	Print(."\n  Sectors per Track: ")
 	xor ah, ah
 	mov al, [Drive.CHS.sectorsPerTrack]
 	call printDecNum
 
-	Print(."\N  Heads Per Cylinder: ")
+	Print(."\n  Heads Per Cylinder: ")
 	PrintDecNum [Drive.CHS.headsPerCylinder]
 	
-	Print(."\N  Cylinders: ")
+	Print(."\n  Cylinders: ")
 	PrintDecNum [Drive.CHS.cylinders]
 	
-	Print(."\NLBA (AH = 48h)")
+	Print(."\n LBA (AH = 48h)")
 	
 	mov al, [Drive.LBA.available]
 	test al, al | jz .printLBAProps
 	cmp al, 1   | je .noDriveLBA
-	Print(."\N  The BIOS doesn't support LBA.")
+	Print(."\n  The BIOS doesn't support LBA.")
 	jmp .End
 	
 	.noDriveLBA:
-	Print(."\N  The drive doesn't support LBA.")
+	Print(."\n  The drive doesn't support LBA.")
 	jmp .End
 	
 	.printLBAProps:
-	Print(."\N  Bytes per Sector: ")
+	Print(."\n  Bytes per Sector: ")
 	PrintDecNum [Drive.LBA.bytesPerSector]
 		
 	.End:
+	Print(."\n")
 ret }
 
 ; Include defitions of a few commonly used functions

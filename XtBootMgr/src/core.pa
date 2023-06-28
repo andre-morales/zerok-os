@@ -1,6 +1,5 @@
 [BITS 16]
 [CPU 8086]
-#define DRIVE_DBG 1
 
 ; Author:   André Morales 
 ; Version:  1.1.0
@@ -50,6 +49,7 @@ Start: {
 	
 	Print(."\NPress any key to read the partition map.") 
 	call WaitKey
+	
 	mov di, PARTITION_ARRAY
 	mov word [Drive.bufferPtr], 0x2000
 	call ReadPartitionMap
@@ -166,8 +166,9 @@ Menu: {
 
 ; void (ES:DI pntrToPartitionArray)
 ReadPartitionMap: {
-	push bp
-	mov bp, sp
+	CLSTACK
+	ENTERFN
+	
 	push ds
 
 	; Read MBR (Sector 0)
@@ -248,13 +249,13 @@ ReadPartitionMap: {
 	}
 	
 	.End:
-	mov sp, bp
-	pop bp
-ret }
+	LEAVEFN
+}
 
 ExploreExtendedPartitionChain: {
 	push bp
 	mov bp, sp
+	
 	push ax ; [BP - 2]
 	push dx ; [BP - 4]
 	push ds ; [BP - 6]

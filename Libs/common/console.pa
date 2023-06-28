@@ -26,6 +26,7 @@ putch: {
 	pop dx | pop bx | pop ax
 ret }
 
+#ifdef CONSOLE_MINIMAL
 /* Prints a string placed in SI */
 print: {
 	push ax
@@ -41,8 +42,6 @@ print: {
 	.end:
 	pop ax
 ret }
-
-#ifdef CONSOLE_MINIMAL
 
 printHexNum_short: {
 	push ax
@@ -83,6 +82,96 @@ ret
 }
 
 #else
+
+classLog: {
+	push ax
+	lodsb
+	push si
+	
+	cmp al, 'E' | je .err
+	cmp al, 'W' | je .warn
+	cmp al, 'I' | je .info
+	cmp al, 'K' | je .ok
+	jmp .msg
+	
+	.err:
+	mov si, ."[&4ER"
+	jmp .end
+	
+	.warn:
+	mov si, ."[&eWR"
+	jmp .end
+	
+	.info:
+	mov si, ."[&9In"
+	jmp .end
+	
+	.ok:
+	mov si, ."[&2Ok"
+	jmp .end
+	
+	.msg:
+	mov si, ."[&3.."
+	
+	.end:
+	call print
+	
+	mov si, ."&7]"
+	call print
+	
+	pop si
+	call print
+	
+	pop ax
+ret }
+
+/* Prints a string placed in SI */
+print: {
+	push ax | push bx | push cx | push dx
+	mov bl, 07h
+	
+	.char:
+		lodsb
+		test al, al
+		jz .end
+			
+		cmp al, '&'
+		jne .place
+		
+		lodsb
+		mov bl, al
+		cmp bl, 'a'
+		jl .n
+		
+		sub bl, 39
+		
+		.n:
+		sub bl, '0'
+		jmp .char
+
+		.place:
+		cmp al, 0Ah ; Is newline?
+		je .sputch
+		
+		; Save char
+		mov dl, al
+		
+		; Stamp color
+		mov al, ' '
+		mov ah, 09h
+		xor bh, bh
+		mov cx, 1
+		int 10h
+		
+		; Print char
+		mov al, dl
+		.sputch:
+		call putch		
+	jmp .char
+		
+	.end:
+	pop dx | pop cx | pop bx | pop ax
+ret }
 
 putnch: {
 	xor ch, ch
