@@ -48,6 +48,7 @@ public class DevToolkitCLI {
 		case "burn" -> burnOrder(orderLine);
 		case "mountdisk" -> mountDiskOrder(orderLine);
 		case "unmountdisk" -> unmountDiskOrder(orderLine);
+		case "syncdisk" -> syncDiskOrder(orderLine);
 		default -> throw new CLIException("Unknown order type [" + order + "].");
 		}
 	}
@@ -180,7 +181,7 @@ public class DevToolkitCLI {
 			
 			writer.close();
 			
-			int returnCode = execSilently("diskpart", "/s", script.toString());
+			int returnCode = Executor.execSilently("diskpart", "/s", script.toString());
 			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
@@ -222,12 +223,44 @@ public class DevToolkitCLI {
 				writer.write("detach vdisk");
 			}
 			
-			int returnCode = execSilently("diskpart", "/s", script.toString());
+			int returnCode = Executor.execSilently("diskpart", "/s", script.toString());
 			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
 	}
+	
+	void syncDiskOrder(String[] order) {
+		String diskFile = null;
+		String diskPath = null;
+		String srcPath = null;
+		
+		// Interpret order arguments
+		for (int i = 1; i < order.length; i++) {
+			var arg = order[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					case "-with" -> srcPath = order[++i];
+					case "-at" -> diskPath = order[++i];
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (diskFile != null) {
+					throw new CLIException("Argument " + arg + " specifies a disk but a disk was already provided before.");
+				}
+				
+				diskFile = arg;
+			}
+		}
+		
+		if (diskFile == null) throw new CLIException("No disk was specified!");
+		if (srcPath == null) throw new CLIException("No folder to sync was specified! Use the -with switch to do so.");
+		if (diskPath == null) throw new CLIException("No disk destination path was specified! Use the -at switch to do so.");
+		
+		var service = new DiskSyncService(diskFile, srcPath, diskPath);
+		service.run();
+	}	
 	
 	/**
 	 * Prints the CLI help text on the console.
@@ -294,33 +327,6 @@ public class DevToolkitCLI {
 		}
 	}
 	
-	/**
-	 * Runs a program with optional CLI arguments. This function only returns when the
-	 * process has finished running completely.
-	 * 
-	 * @param cmd The program command followed by its arguments.
-	 * @return The return code of the program.
-	 */
-	static int execSilently(String... cmd) {
-		try {
-			Process proc;
-			
-			// Build the process and start it. If the program command couldn't be found, throw a dedicated exception.
-			try {
-				var procBuilder = new ProcessBuilder(cmd);
-				procBuilder.redirectErrorStream(true);
-				proc = procBuilder.start();
-			} catch(IOException e){
-				throw new ProgramNotFoundException(e);
-			}
-						
-			// After the program is done running, drain the rest of the output.
-			int returnCode = proc.waitFor();
-			return returnCode;
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}
-	}
 	
 	/**
 	 * Converts a fancy number string into a number.

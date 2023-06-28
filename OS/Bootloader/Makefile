@@ -48,16 +48,11 @@ bstrap: bstrap/bootstrap.pa
 	${PASME} transpile bstrap/bootstrap.pa -to build/bstrap/bootstrap.asm ${PT_FLAGS}
 	${PASME} assemble  build/bstrap/bootstrap.asm -to build/bin/bstrap/BSTRAP.BIN
 
-	$(call mount-test-disk)
-	copy "build\bin\bstrap\BSTRAP.BIN" "Z:\ZKOS\BSTRAP.BIN"
-	$(call unmount-test-disk)
-
+	copy "build\bin\bstrap\BSTRAP.BIN" "diskDropbox\ZKOS\BSTRAP.BIN"
 
 # -- Loader Core --
 loader: build/bin/ZKLOADER.ELF
-	$(call mount-test-disk)
-	copy "build\bin\ZKLOADER.ELF" "Z:\ZKOS\ZKLOADER.ELF"
-	$(call unmount-test-disk)
+	copy "build\bin\ZKLOADER.ELF" "diskDropbox\ZKOS\ZKLOADER.ELF"
 
 # Final binary
 build/bin/ZKLOADER.ELF: loader_stdlib loader/link.ld build/loader/stub.o build/loader/core.o build/loader/vga_video.o build/loader/lmem.o build/loader/acpi.o

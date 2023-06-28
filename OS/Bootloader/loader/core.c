@@ -29,7 +29,7 @@ void main() {
 	bool init = loadInitArgs();
 	setupIO();
 	
-	printf("\n\n-- &bZk&3Loader &eCore32\n");
+	printf("\n\n-- &bZk&3Loader &eCore32 &cv8.0\n");
 
 	if (!init) {
 		log(LOG_ERROR, "Invalid loader arguments.\n");

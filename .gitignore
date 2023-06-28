@@ -1,11 +1,13 @@
 /Test Machines/
 /Tools/Legacy Tools/
 /Tools/GCC/
-
-/XtBootMgr/build/
-/OS/Bootloader/build/
-/Tools/Pasme/target/
-.vs
 /Tools/DevToolkit/nbproject/private/
 /Tools/DevToolkit/build/
 /Tools/DevToolkit/dist/
+/Tools/Pasme/target/
+
+/XtBootMgr/build/
+/OS/Bootloader/build/
+/OS/Bootloader/diskDropbox/
+.vs
+
