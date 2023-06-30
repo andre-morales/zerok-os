@@ -41,7 +41,7 @@
 		pop si
 	%endmacro
 
-	%macro ClassLog 1
+	%macro ClassLog 2
 		push si
 		mov si, %1
 		call classLog

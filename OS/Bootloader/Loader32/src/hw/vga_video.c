@@ -1,6 +1,6 @@
 #include "vga_video.h"
 #include "lmem.h"
-#include "string.h"
+#include "lib/string.h"
 
 const char DEFAULT_ATTRIB = 0x07;
 struct Video video;

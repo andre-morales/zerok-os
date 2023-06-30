@@ -1,18 +1,18 @@
 #include "acpi.h"
 #include "lmem.h"
-#include "stdio.h"
-#include "string.h"
+#include "lib/stdio.h"
+#include "lib/string.h"
 #include <stdint.h>
 
-struct RSDP_T {
+#pragma pack(push, 1)
+typedef struct {
 	char signature[8];
 	uint8_t checksum;
 	char oem[6];
 	uint8_t revision;
 	uint32_t rsdtAddr;
-} __attribute__ ((packed));
-
-typedef struct RSDP_T RSDP;
+} RSDP;
+#pragma pack(pop)
 
 bool acpi_find() {
 	const char* const ACPI_SIGNATURE = "RSD PTR ";
@@ -49,7 +49,7 @@ bool acpi_find() {
 }
 
 bool acpi_validateRSDP(void* ptr_) {
-	uint8_t* ptr = ptr_;
+	uint8_t* ptr = (uint8_t*)ptr_;
 
 	log(LOG_MSG, "Validating 0x%x\n", (unsigned int)ptr_);
 
@@ -60,7 +60,7 @@ bool acpi_validateRSDP(void* ptr_) {
 
 	if (sum != 0) return false;
 
-	RSDP* rsdpDesc = ptr_;
+	RSDP* rsdpDesc = (RSDP*)ptr_;
 	int rev = rsdpDesc->revision;
 
 	log(LOG_OK, "ACPI: Revision %i\n", rev);

@@ -1,9 +1,11 @@
 #include "core.h"
-#include "vga_video.h"
 #include "lmem.h"
-#include "acpi.h"
-#include "stdio.h"
-#include "string.h"
+#include "hw/vga_video.h"
+#include "hw/acpi.h"
+#include "hw/pci.h"
+#include "hw/isa.h"
+#include "lib/stdio.h"
+#include "lib/string.h"
 
 /**
  * [ 0   -  500] BIOS Stuff
@@ -12,18 +14,6 @@
  * [2000 -  #  ] Page Table
  * [3000 - ... ] ZkLoader
  */
-
-void pci_init() {
-	uint8_t major = loader_args.pciMajorVer;
-	uint8_t minor = loader_args.pciMinorVer;
-
-	if (major == 0 && minor == 0) {
-		log(LOG_ERROR, "PCI: Not supported.\n");
-		return;
-	}
-
-	log(LOG_OK, "PCI: Version %i.%i\n", (int)major, (int)minor);
-}
 
 void main() {	
 	bool init = loadInitArgs();
@@ -36,8 +26,16 @@ void main() {
 		return;
 	}
 
+	isa_init();
 	acpi_find();
-	pci_init();
+	PCI_InitArgs pciArgs;
+	pciArgs.entryPoint = loader_args.pciEntryPoint;
+	pciArgs.lastBus = loader_args.pciLastBus;
+	pciArgs.majorVer = loader_args.pciMajorVer;
+	pciArgs.minorVer = loader_args.pciMinorVer;
+	pciArgs.props = loader_args.pciProps;
+	pci_init(&pciArgs);
+	
 	log(LOG_OK,	"Done.\n");
 }
 
@@ -67,6 +65,6 @@ void setupIO() {
 }
 
 void breakpoint() {
-	asm volatile ("xchg %bx, %bx");
+	__asm __volatile ("xchg %bx, %bx");
 }
 

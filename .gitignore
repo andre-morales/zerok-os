@@ -8,6 +8,7 @@
 
 /XtBootMgr/build/
 /OS/Bootloader/build/
+/OS/Bootloader/Loader32/build/
 /OS/Bootloader/diskDropbox/
 .vs
 
