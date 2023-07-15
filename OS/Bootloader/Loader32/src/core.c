@@ -1,33 +1,36 @@
 #include "core.h"
-#include "lmem.h"
 #include "hw/vga_video.h"
 #include "hw/acpi.h"
 #include "hw/pci.h"
 #include "hw/isa.h"
+#include "hw/serial.h"
 #include "lib/stdio.h"
 #include "lib/string.h"
+#include "lib/stdlib.h"
+#include "hw/gdt.h"
 
 /**
  * [ 0   -  500] BIOS Stuff
- * [500  -  #  ] Stack
- * [1000 -  #  ] Page Directory
- * [2000 -  #  ] Page Table
+ * [500  -  518] GDT
+ * [...  - 3000] Stack
  * [3000 - ... ] ZkLoader
  */
 
-void main() {	
+void main() {
 	bool init = loadInitArgs();
 	setupIO();
-	
-	printf("\n\n-- &bZk&3Loader &eCore32 &cv8.0\n");
-
+	printf("\n-- &bZk&3Loader &eCore32 &cv8.2\n");
 	if (!init) {
 		log(LOG_ERROR, "Invalid loader arguments.\n");
 		return;
 	}
 
-	isa_init();
-	acpi_find();
+	if (isa_init()) {
+		isa_enumerateDevices();
+	}
+
+	/*acpi_init();
+
 	PCI_InitArgs pciArgs;
 	pciArgs.entryPoint = loader_args.pciEntryPoint;
 	pciArgs.lastBus = loader_args.pciLastBus;
@@ -36,14 +39,14 @@ void main() {
 	pciArgs.props = loader_args.pciProps;
 	pci_init(&pciArgs);
 	
-	log(LOG_OK,	"Done.\n");
+	log(LOG_OK,	"Done.\n");*/
 }
 
 /** Loads stuff passed by previous stages */
 bool loadInitArgs() {
-	char* signature = (char*)&loader_args;
+	char* sign = (char*) &loader_args.signature;
 
-	if (signature[0] != 'Z' || signature[1] != 'k') {
+	if (sign[0] != 'Z' || sign[1] != 'k') {
 		video.columns = 80;
 		video.mode = 3;
 		return false;
@@ -54,17 +57,21 @@ bool loadInitArgs() {
 	return true;
 }
 
+void multiprint(const char* str) {
+	video_print(str);
+	serial_print(str);
+}
+
 void setupIO() {
+	serial_init();
+
 	// Setup vga video
 	video_init();
 	video.cur_x = 0;
 	video.cur_y = 24;
 
 	// Set stdout to video_print
-	stdout_procs[0] = &video_print;
+	stdout->printfn = &multiprint;
+	video_out->printfn = &video_print;
+	serial_out->printfn = &serial_print;
 }
-
-void breakpoint() {
-	__asm __volatile ("xchg %bx, %bx");
-}
-

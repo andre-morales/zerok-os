@@ -21,9 +21,6 @@
     <ClCompile Include="src\core.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\lmem.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\hw\vga_video.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -36,7 +33,16 @@
     <ClCompile Include="src\hw\pci.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\hw\serial.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\hw\isa.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\hw\gdt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\hw\model16.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -45,9 +51,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\core.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lmem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\hw\vga_video.h">
@@ -59,22 +62,43 @@
     <ClInclude Include="src\lib\string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\assertion.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\hw\pci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\lib\stdlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hw\io.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hw\serial.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\assert.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\hw\isa.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\global.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hw\gdt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hw\model16.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="stub.pa" />
-    <None Include="link.ld" />
     <None Include="Makefile" />
+    <None Include="linker_script.ld" />
+    <None Include="entry_stub.pa" />
   </ItemGroup>
 </Project>

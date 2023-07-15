@@ -1,13 +1,14 @@
 # -- Config --
-LOADER_OBJS=entry_stub.o core.o lmem.o lib/string.o lib/stdio.o hw/vga_video.o hw/acpi.o hw/pci.o hw/isa.o
+LOADER_OBJS=entry_stub.o core.o lib/string.o lib/stdio.o hw/model16.o hw/vga_video.o hw/acpi.o hw/pci.o hw/serial.o hw/gdt.o hw/isa.o
 
 # -- Tools --
 PASME=tools\pasme
 CC=tools\gcc
+CL=tools\ld
 
 # Flags for just the GCC compiler
-CCFLAGS=-ffreestanding -nostdlib -lgcc -Isrc -Isrc/stdlib -std=gnu99 -O3
-
+CCFLAGS=-ffreestanding -nostdlib -lgcc -std=c99 -fvisibility=hidden -O3 -masm=intel -Isrc -Isrc/stdlib -include global.h
+CLFLAGS=-nostdlib -O3
 .PHONY: all loader loader_stdlib clean debug
 
 all: loader
@@ -16,11 +17,11 @@ all: loader
 LDR_OBJS=$(addprefix build/obj/,$(LOADER_OBJS))
 
 loader: build/ZKLOADER.ELF
-	REM copy "build\bin\ZKLOADER.ELF" "diskDropbox\ZKOS\ZKLOADER.ELF"
+	copy "build\ZKLOADER.ELF" "..\diskDropbox\ZKOS\ZKLOADER.ELF"
 
 # Final binary
 build/ZKLOADER.ELF: linker_script.ld $(LDR_OBJS) | build
-	${CC} -T linker_script.ld -o build/ZKLOADER.ELF $(LDR_OBJS) $(CCFLAGS) -O3
+	$(CL) -T linker_script.ld -o build/ZKLOADER.ELF $(LDR_OBJS) $(CLFLAGS) 
 
 # Build folder
 build:

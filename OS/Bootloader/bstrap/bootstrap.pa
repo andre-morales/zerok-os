@@ -57,6 +57,12 @@ SECTION stack vstart=0x500 progbits
 
 dw 'Zk'
 
+; GDT Descriptor
+GDT_Desc: {
+	dw GDT.End - GDT - 1; Length
+	dd GDT			    ; Pointer
+}
+
 ; Global descriptor table imported by LGDT instruction
 GDT: {
 	; Entry 0 must be null
@@ -79,14 +85,24 @@ GDT: {
 	db 0		 ; Base (24:31)
 .End: }
 
-GDT_Desc: {
-	dw GDT.End - GDT ; Length
-	dd GDT			 ; Pointer
-}
+times 256-($-$$) db 0x00 ; Fill the reserved stack section
 
-times 512-($-$$) db 0x00 ; Fill the reserved stack section
+SECTION dummy vstart=0x600 progbits
 
-SECTION .text vstart=0x700 follows=stack
+helloworld:
+	push bx
+	
+	add bx, 1
+	
+	push bx
+	
+	pop ax
+	pop ax
+retf
+
+times 256-($-$$) db 0x00 ; Fill the reserved stack section
+
+SECTION .text vstart=0x700 follows=dummy
 jmp start
 
 dw Drive ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
@@ -190,6 +206,8 @@ ret }
 Enable32: {
 	Log(.". Entering 32-bit...\n")
 	
+	BREAK
+	
 	cli             ; Interrupts clear.
 	lgdt [GDT_Desc] ; Load GDT
 	
@@ -212,7 +230,7 @@ Entry32: {
 }
 
 [BITS 16]
-; Loads the ELF file present at 0x3000.
+; Loads the ELF file present at 0x2000.
 LoadELF: {
 	push bp
 	mov bp, sp

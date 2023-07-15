@@ -8,14 +8,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  *
  * @author Andre
  */
 public class DiskSyncService {
+	final int UNMOUNTING_DELAY = 1000;
+	
 	boolean diskMounted;
 	long lastTimeDiskMounted;
 	String diskFilePath;
@@ -33,6 +33,11 @@ public class DiskSyncService {
 	}
 	
 	public void run() {
+		System.out.println("-- Disk Syncing Utility --");
+		if (!Executor.hasElevatedPrivleges()) {
+			System.out.println("[!] WARNING: No elevated privleges. Mounting might fail.");
+		}
+		
 		try {
 			var watcher = FileSystems.getDefault().newWatchService();
 			srcPath.register(watcher,
@@ -43,13 +48,13 @@ public class DiskSyncService {
 				while (true) {
 					try {
 						Thread.sleep(1000);
-					} catch (InterruptedException ex) {}
 					
-					if (diskMounted) {
-						if (System.currentTimeMillis() - lastTimeDiskMounted > 5000) {
-							unmountDisk();
+						if (diskMounted) {
+							if (System.currentTimeMillis() - lastTimeDiskMounted > UNMOUNTING_DELAY) {
+								unmountDisk();
+							}
 						}
-					}
+					} catch (Exception ex) {}
 				}
 			}).start();
 			
@@ -73,12 +78,13 @@ public class DiskSyncService {
 						mountDisk();
 						System.out.println("    Mounted.");
 					} catch (Exception ex) {
-						System.out.println("[!] Could'nt mount.");
+						System.out.println("[.] Could'nt mount.");
 					}
 					
 					try {
 						Executor.execSilently("cmd", "/c", "copy", srcFile.toString(), dstFile.toString());
 						System.out.println("    Copied.");
+						diskMounted = true;
 					} catch (Exception ex) {
 						System.out.println("[!] Copy failed.");
 					}
@@ -129,7 +135,7 @@ public class DiskSyncService {
 
 			int returnCode = Executor.execSilently("diskpart", "/s", script.toString());
 			if (returnCode != 0) {
-				System.out.println("[!] Disk unmounting failed.");
+				System.out.println("[.] Disk unmounting failed.");
 				throw new CLIException("Diskpart failed with code " + returnCode);
 			}
 			System.out.println("    Disk unmounted.");

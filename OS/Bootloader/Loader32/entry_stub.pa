@@ -1,4 +1,5 @@
 #define LOADER_ARGS_SIZE 13
+%define BREAK xchg bx, bx
 
 EXTERN main
 
@@ -7,7 +8,6 @@ GLOBAL loader_args
 
 var byte[$#LOADER_ARGS_SIZE#] loader_args
 
-[SECTION .text]
 _start: {
 	; Set all segments to 0x10
 	mov ax, 0x10
@@ -20,9 +20,7 @@ _start: {
  	; Prepare stack
 	mov esp, 0xFF0
 	
-	call copyLoaderStruct
-	call setupPagingStructures
-	call enablePaging	
+	call copyLoaderStruct	
 	call main		
 	jmp halt
 }
@@ -55,47 +53,6 @@ halt: {
 	hlt
 	jmp halt
 }
-
-setupPagingStructures: {
-	; -- Page directory at 0x1000 --
-	mov edi, 0x1000
-
-	; Setup first page directory entry to 0x2000
-	mov eax, 010000000000111b
-	stosd
-
-	; Zero-out the rest of the page directory entries. */
-	xor eax, eax
-	mov ecx, 1023
-	rep stosd
-
-	; -- Page table at 0x2000 -- */
-	mov edi, 0x2000
-	mov eax, 0000000000111b
-
-	; Identity map 16 pages.*/
-	mov ecx, 16
-	.setpage:
-		stosd
-		add eax, 1000000000000b
-	loop .setpage
-
-	; Zero-out rest of page table entries */
-	xor eax, eax
-	mov ecx, 1008
-	rep stosd
-ret }
-
-enablePaging: {
-	; Set paging directory location
-	mov eax, 0x1000
-	mov cr3, eax
-
-	; Enable paging
-	mov eax, cr0
-	or eax, 0x80000000
-	mov cr0, eax
-ret }
 
 [SECTION .bss]
 @bss:

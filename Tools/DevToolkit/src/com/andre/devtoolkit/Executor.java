@@ -1,6 +1,9 @@
 package com.andre.devtoolkit;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.util.prefs.Preferences;
 
 /**
  *
@@ -32,6 +35,19 @@ public class Executor {
 			return returnCode;
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
+		}
+	}
+	
+	public static boolean hasElevatedPrivleges() {
+		var prefs = Preferences.systemRoot();
+		
+		try {
+			prefs.put("dummytest", "test");
+			prefs.remove("dummytest");
+			prefs.flush();
+			return true;
+		} catch(Exception ex) {
+			return false;
 		}
 	}
 	

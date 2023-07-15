@@ -1,17 +1,23 @@
 #include "stdio.h"
 #include "string.h"
+#include "stdlib.h"
 
-stdout_fn stdout_procs[4] = {0, 0, 0, 0};
+FILE impl_stdout = { .printfn = 0, .colors = false };
+FILE impl_video_out = { .printfn = 0, .colors = false };
+FILE impl_serial_out = { .printfn = 0, .colors = false };
+
+FILE* stdout = &impl_stdout;
+FILE* video_out = &impl_video_out;
+FILE* serial_out = &impl_serial_out;
 
 int int_to_strn(int value, char* dst, int max, int base);
 
-int vfprintf(short int file, const char* fmt, va_list args) {
-	if (file >= 4) return -1;
-
-	stdout_fn function = stdout_procs[file];
+int vfprintf(FILE* stream, const char* fmt, va_list args) {
+	stdout_fn function = stream->printfn;
 	if (function == NULL) return -1;
 
 	char buffer[1024];
+
 	int ret = vsnprintf(buffer, 1024, fmt, args);	
 
 	function(buffer);
@@ -21,20 +27,20 @@ int printf(const char* fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
 	
-	int ret = vfprintf(0, fmt, args);
+	int ret = vfprintf(stdout, fmt, args);
 
 	va_end(args);
 	return ret;
 }
 
 int vprintf(const char* fmt, va_list args) {
-	return vfprintf(0, fmt, args);
+	return vfprintf(stdout, fmt, args);
 }
 
-int fprintf(short int file, const char* fmt, ...) {
+int fprintf(FILE* stream, const char* fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-	int ret = vfprintf(file, fmt, args);
+	int ret = vfprintf(stream, fmt, args);
 	va_end(args);	
 	return ret;
 }
@@ -52,6 +58,7 @@ int vsnprintf(char* dst, size_t max, const char* fmt, va_list args) {
 	int rem = max - 1;
 
 	for (;;) {
+
 		char c = *fmt++;
 		if (c == 0) break;
 

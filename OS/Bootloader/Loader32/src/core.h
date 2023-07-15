@@ -1,19 +1,20 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
-#include "assertion.h"
+#include <assert.h>
 #include "types.h"
 
 #pragma pack(push, 1)
 typedef struct {
-	uint16 signature;
-	uint8 vidColumns;
-	uint8 vidMode;
+	char signature[2];
+	uint8_t vidColumns;
+	uint8_t vidMode;
 
-	uint8 pciMajorVer;
-	uint8 pciMinorVer;
-	uint16 pciProps;
-	uint8 pciLastBus;
+	uint8_t pciMajorVer;
+	uint8_t pciMinorVer;
+	uint16_t pciProps;
+	uint8_t pciLastBus;
 	void* pciEntryPoint;
 } InitStruct;
 #pragma pack(pop)
@@ -22,4 +23,3 @@ extern const InitStruct loader_args;
 
 bool loadInitArgs();
 void setupIO();
-void breakpoint();

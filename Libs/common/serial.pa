@@ -49,13 +49,18 @@ Serial.putch: {
 	
 	push ax
 	
+	; How many tries before giving up
+	mov cx, 20
+	
 	.wait:
 		inb PORT+5
 		and al, 0x20
 		
 		test al, al
-	jz .wait
-	
+		jnz .done
+	loop .wait
+		
+	.done:
 	pop ax
 	mov dx, PORT
 	out dx, al
@@ -65,7 +70,7 @@ Serial.putch: {
 }
 
 Serial.print: {
-	push ax | push dx
+	push ax | | push cx | push dx
 	
 .putc:
 	lodsb
@@ -75,7 +80,7 @@ Serial.print: {
 	jmp .putc
 	
 .end:
-	pop dx | pop ax
+	pop dx | pop cx | pop ax
 	ret
 }
 

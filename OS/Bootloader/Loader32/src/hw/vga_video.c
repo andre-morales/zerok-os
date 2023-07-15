@@ -1,33 +1,26 @@
 #include "vga_video.h"
-#include "lmem.h"
 #include "lib/string.h"
+#include "lib/stdlib.h"
 
 const char DEFAULT_ATTRIB = 0x07;
-struct Video video;
+Video video;
 
 void video_init() {
-	int page;
 	if (video.mode == 7) {
-		page = 0xB0;
+		video.vram = (void*)0xB0000;
+	} else {
+		video.vram = (void*)0xB8000;
 	}
-	else {
-		page = 0xB8;
-	}
-
-	// Identity map VRAM
-	memMap(0xA0, page);
-	memReloadPageDir();
-	video.vram = (void*)(0xA0 * 0x1000);
 
 	video.attrib = DEFAULT_ATTRIB;
 }
 
 char video_colorToAttrib(char c) {
-	if (c >= 'a') {
+	if (c >= 'a' && c <= 'f') {
 		return c + 10 - 'a';
 	}
 	
-	if (c >= '0') {
+	if (c >= '0' && c <= '9') {
 		return c - '0';
 	}
 
@@ -80,6 +73,7 @@ void video_scroll(int lines){
 		void* dst = video.vram;
 		const void* src = video.vram + video.columns * lines * 2;
 		uint32_t len = video.columns * (25 - lines) * 2;
+
 		memmove(dst, src, len);
 
 		// Blank last lines
@@ -87,7 +81,7 @@ void video_scroll(int lines){
 		uint32_t clr_len = video.columns * lines;
 		while(clr_len--){
 			*(clr_dst++) = 0;
-			*(clr_dst++) = 7;
+			*(clr_dst++) = DEFAULT_ATTRIB;
 		}
 	}
 }

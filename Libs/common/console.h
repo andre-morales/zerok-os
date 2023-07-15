@@ -41,13 +41,6 @@
 		pop si
 	%endmacro
 
-	%macro ClassLog 2
-		push si
-		mov si, %1
-		call classLog
-		pop si
-	%endmacro
-
 	%macro Print 1
 		push si
 		mov si, %1
