@@ -13,4 +13,4 @@ inline far_ptr16 farptr_data(void* ptr_) {
 	return far;
 }
 
-int NO_INLINE NEAR_TEXT call_far16(far_ptr16 function, uint16_t* args, size_t n);
+uint16_t NO_INLINE NEAR_TEXT call_far16(far_ptr16 function, uint16_t* args, size_t n);

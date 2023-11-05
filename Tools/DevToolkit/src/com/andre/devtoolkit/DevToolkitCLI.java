@@ -3,10 +3,7 @@ package com.andre.devtoolkit;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.Scanner;
 
 /**
@@ -19,7 +16,7 @@ import java.util.Scanner;
  * @version 1.1.0
  */
 public class DevToolkitCLI {
-	public static final String VERSION_STR = "0.1.0";
+	public static final String VERSION_STR = "0.1.1";
 	/**
 	 * Runs DevToolkit with CLI arguments
 	 * 
@@ -28,7 +25,7 @@ public class DevToolkitCLI {
 	public void run(String[] args) {	
 		if (args.length == 0) {
 			printHeader();
-			System.out.println("Nothing to do here. To view a list of possible commands, run 'pasme help'.");
+			System.out.println("Nothing to do here. To view a list of possible commands, run 'devtk help'.");
 			return;
 		}
 
@@ -46,9 +43,10 @@ public class DevToolkitCLI {
 		switch(order) {
 		case "help" -> helpOrder(orderLine);
 		case "burn" -> burnOrder(orderLine);
-		case "mountdisk" -> mountDiskOrder(orderLine);
-		case "unmountdisk" -> unmountDiskOrder(orderLine);
+		case "mount" -> mountOrder(orderLine);
+		case "unmount" -> unmountOrder(orderLine);
 		case "syncdisk" -> syncDiskOrder(orderLine);
+		case "partitions" -> partitionsOrder(orderLine);
 		default -> throw new CLIException("Unknown order type [" + order + "].");
 		}
 	}
@@ -79,9 +77,9 @@ public class DevToolkitCLI {
 			
 			if (arg.startsWith("-")) {
 				switch (arg) {
-					case "-srcOff" -> inputOffset = parseNumber(orderLine[++i]);
-					case "-dstOff" -> outputOffset = parseNumber(orderLine[++i]);
-					case "-length" -> fileLength = parseNumber(orderLine[++i]);
+					case "-srcOff" -> inputOffset = parseNumberExpression(orderLine[++i]);
+					case "-dstOff" -> outputOffset = parseNumberExpression(orderLine[++i]);
+					case "-length" -> fileLength = parseNumberExpression(orderLine[++i]);
 					case "-to" -> output = orderLine[++i];
 					default -> throw new CLIException("Unknown switch: " + arg);
 				}
@@ -105,50 +103,21 @@ public class DevToolkitCLI {
 			System.out.println("with " + fileLength + " bytes");
 		}
 		
-		try {
-			// Open output disk file
-			var diskPath = new File(output).toPath();
-			var diskStream = FileChannel.open(diskPath, StandardOpenOption.WRITE);
-			diskStream.position(outputOffset);
-			
-			// Open input file
-			var inputFile = new File(input);
-			var inputSize = inputFile.length();
-			var inputStream = FileChannel.open(inputFile.toPath(), StandardOpenOption.READ);
-			inputStream.position(inputOffset);			
-			
-			// Prevent an overflow if the specified input offset and length would do so.
-			long len = Math.min(inputSize - inputOffset, fileLength);
-			
-			// Byte writing loop
-			var bb = ByteBuffer.allocate(1);
-			int b;
-			for (long i = 0; i < len; i++) {
-				while ((b = inputStream.read(bb)) == 0) {
-					if (b == -1) {
-						throw new IOException("-1.");
-					}
-				}
-				bb.flip();
-				while (diskStream.write(bb) == 0) {
-				}
-				bb.flip();
-			}
-			
-			// Release resources
-			diskStream.close();
-			inputStream.close();
-			
-			System.out.println("Written " + len + " bytes.");
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
+		// Open output disk file
+		var diskPath = new File(output);
+
+		// Open input file
+		var inputFile = new File(input);
+
+		var written = DiskBurner.transferFiles(inputFile, inputOffset, diskPath, outputOffset, fileLength);
+
+		System.out.println("Written " + written + " bytes.");
 	}
 	
 	/**
 	 * Mounts a virtual disk file. Requires no switches, only an input argument.
 	 */
-	void mountDiskOrder(String[] order) {
+	void mountOrder(String[] order) {
 		String diskPathArg = null;
 		
 		// Interpret order arguments
@@ -191,7 +160,7 @@ public class DevToolkitCLI {
 	/**
 	 * Unmounts a virtual disk file. Requires no switches, only an input argument.
 	 */
-	void unmountDiskOrder(String[] order) {
+	void unmountOrder(String[] order) {
 		String diskPathArg = null;
 		
 		// Interpret order arguments
@@ -230,6 +199,9 @@ public class DevToolkitCLI {
 		}
 	}
 	
+	/**
+	 * Instantiates a disk syncing service. Requires administrative privileges.
+	 */
 	void syncDiskOrder(String[] order) {
 		String diskFile = null;
 		String diskPath = null;
@@ -262,6 +234,34 @@ public class DevToolkitCLI {
 		service.run();
 	}	
 	
+	void partitionsOrder(String[] order) {
+		String diskPathArg = null;
+		
+		// Interpret order arguments
+		for (int i = 1; i < order.length; i++) {
+			var arg = order[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (diskPathArg != null) {
+					throw new CLIException("Argument " + arg + " specifies a disk but a disk was already provided before.");
+				}
+				
+				diskPathArg = arg;
+			}
+		}
+		
+		if (diskPathArg == null) throw new CLIException("No disk was specified!");
+		
+		var partitions = DiskPartitions.listPartitions(new File(diskPathArg));
+		for (var p : partitions) {
+			System.out.println(p);
+		}
+	}
+	
 	/**
 	 * Prints the CLI help text on the console.
 	 * 
@@ -279,80 +279,36 @@ public class DevToolkitCLI {
 		}
 	}
 		
-	/** Prints the Pasme header with version. */
+	/** Prints the app header with version. */
 	void printHeader() {
 		System.out.println("-- DevToolkit Version " + VERSION_STR);
-	}
+	}	
 	
 	/**
-	 * Runs a program with optional CLI arguments. The program will have all of
-	 * its output redirected to stdout. This function only returns when the
-	 * process has finished running completely.
-	 * 
-	 * @param cmd The program command followed by its arguments.
-	 * @return The return code of the program.
-	 */
-	static int exec(String... cmd) {
-		try {
-			Process proc;
-			
-			// Build the process and start it. If the program command couldn't be found, throw a dedicated exception.
-			try {
-				var procBuilder = new ProcessBuilder(cmd);
-				procBuilder.redirectErrorStream(true);
-				proc = procBuilder.start();
-			} catch(IOException e){
-				throw new ProgramNotFoundException(e);
-			}
-			
-			// While the program is running, print all its output.
-			var input = proc.getInputStream();
-			while (proc.isAlive()) {
-				int c = input.read();
-				if (c > 0) {
-					System.out.print((char) c);
-				}
-			}
-			
-			// After the program is done running, drain the rest of the output.
-			int returnCode = proc.waitFor();
-			int c;
-			while ((c = input.read()) > 0) {
-				System.out.print((char) c);
-			}
-
-			return returnCode;
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}
-	}
-	
-	
-	/**
-	 * Converts a fancy number string into a number.
+	 * Converts a hex number expression string into a number.
 	 * Examples:
 	 * "0x30"        -> 48
 	 * "0x30 + 2"    -> 50
 	 * "0x30 + 0x30" -> 96
 	 * 
-	 * @param str The string to convert. Can be in base 10, 16, or a mix of both.
+	 * @param expr The string to convert. Can be in base 10, 16, or a mix of both.
 	 * @return Converted number.
 	 */
-	static int parseNumber(String str){
-		str = str.trim();
+	static int parseNumberExpression(String expr){
+		expr = expr.trim();
 		
-		int p = str.indexOf("+");
+		int p = expr.indexOf("+");
 		if(p != -1){
-			var a = parseNumber(str.substring(0, p));
-			var b = parseNumber(str.substring(p + 1));
+			var a = parseNumberExpression(expr.substring(0, p));
+			var b = parseNumberExpression(expr.substring(p + 1));
 			return a + b;
 		}
 		
-		if (str.startsWith("0x")) {
-			return Integer.parseInt(str.substring(2), 16);
+		if (expr.startsWith("0x")) {
+			return Integer.parseInt(expr.substring(2), 16);
 		}
 		
 		// Treat number as base 10 by default
-		return Integer.parseInt(str, 10);
+		return Integer.parseInt(expr, 10);
 	}	
 }

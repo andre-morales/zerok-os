@@ -1,1 +1,1 @@
-These files are used by XtBootMgr and by XtLoader
+These files are used by XtBootMgr and by ZkLoader

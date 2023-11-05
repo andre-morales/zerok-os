@@ -13,13 +13,13 @@
 #include "version.h"
 #include <common/console.h>
 
-; -- [...    - 0x06FF] Stack
+; -- [...    - 0x1000] Stack
 ; -- [0x6000 -   ... ] Where Stage 2 will be loaded.
 ; -- [0x7600 -    #  ] Loaded MBR.
 ; -- [0x7800 -    #  ] Test VBR/EBR.
 ; -- [0x7A00 -    #  ] Test VBR from EBR.
 ; -- [0x7C00 -    #  ] Our loaded VBR (Stage 1).
-; -- [0x7E00 - 0x7FFF] Varible storage
+; -- [0x7E00 -   ... ] Varible storage
 
 %define STAGE2_ADDR 0x6000
 
@@ -52,12 +52,13 @@ start: {
 	mov byte [Drive.id], 0x80
 	call TryDrive
 	
-	; If that fails too. Just halt.
+	; If that fails. Just halt.
 	mov al, 'N'
 	jmp haltm
 }
 
 ; Check if drive number is sane, if it's not, set it to 0x80
+; This procedure is the same one used by GRUB 2
 VerifyDriveNumber: {
 	; If DL is less than 0x80, set it to 0x80.
 	test dl, 0x80
@@ -78,8 +79,8 @@ TryDrive: {
 	call Drive.Init
 
 	/* Now we will read the VBRs of the 4 partition entries in the MBR and check 
-	if they are the same as us. If any of these entries is an extended partiton,
-	read that too. */
+	if they refer to our current partition. If any of these entries is an extended partiton,
+	check the extended partitions too. */
 
 	; Load MBR (sector 0) to 0x7600
 	mov word [Drive.bufferPtr], 0x7600
@@ -206,13 +207,13 @@ loadStage2: {
 	jne .invalidSignature
 	
 	; Get sector count stored in the begginning of Stage 2.
-	; And load that many
+	; And load that many sectors
 	mov cx, [si] 
 	.lsect:
 		call .ReadNextSector
 	loop .lsect
 	
-	; Save drive number and jump to Stage 2
+	; Restore drive number and jump to Stage 2
 	mov dl, [Drive.id]
 	jmp STAGE2_ADDR + 4
 	

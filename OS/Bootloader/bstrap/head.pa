@@ -91,6 +91,7 @@ start: {
 	mov cx, FATFS.vars_end - FATFS
 	rep movsb 
 	
+	; Check the signature
 	cmp word [0x500], 'Zk' | je .jump
 	Log(."E Invalid signature.\n")
 	int 0x30

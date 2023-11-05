@@ -1,6 +1,8 @@
 #pragma once
 #include "types.h"
 
+typedef uint32_t PCI_DevAddr;
+
 typedef struct {
 	uint8_t majorVer;
 	uint8_t minorVer;
@@ -9,15 +11,30 @@ typedef struct {
 	void* entryPoint;
 } PCI_InitArgs;
 
+typedef struct {
+	PCI_DevAddr address;
+	uint16_t vendorID;
+	uint16_t deviceID;
+	uint8_t dClass;
+	uint8_t dSubClass;
+} PCI_Device;
+
+typedef void(*EnumCallback)(const PCI_Device* device);
+
 bool pci_init(const PCI_InitArgs*);
-void pci_enumerate();
-bool pci_enumFunction(uint8_t bus, uint8_t device, uint8_t function);
+void pci_enumerate(EnumCallback fn);
 
-uint8_t pci_getBaseClass(uint8_t bus, uint8_t dev, uint8_t func);
-uint8_t pci_getSubClass(uint8_t bus, uint8_t dev, uint8_t func);
-uint16_t pci_getVendorID(uint8_t bus, uint8_t device, uint8_t function);
-uint16_t pci_getDeviceID(uint8_t bus, uint8_t device, uint8_t function);
-uint8_t pci_getHeaderType(uint8_t bus, uint8_t device, uint8_t function);
+PCI_DevAddr pci_devAddr(uint8_t bus, uint8_t slot, uint8_t func);
+void pci_addrToPath(PCI_DevAddr addr, uint8_t* bus, uint8_t* slot, uint8_t* func);
 
-uint16_t pci_readConfigW(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset);
-uint16_t pci_readConfigB(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset);
+uint8_t pci_devBaseClass(PCI_DevAddr);
+uint8_t pci_devSubClass(PCI_DevAddr);
+uint16_t pci_devVendorID(PCI_DevAddr);
+uint16_t pci_devDeviceID(PCI_DevAddr);
+uint8_t pci_devHeaderType(PCI_DevAddr);
+uint8_t pci_devProgInterface(PCI_DevAddr);
+uint32_t pci_devBAR(PCI_DevAddr, uint8_t barN);
+
+uint32_t pci_readConfigL(PCI_DevAddr addr, uint8_t offset);
+uint16_t pci_readConfigW(PCI_DevAddr addr, uint8_t offset);
+uint8_t pci_readConfigB(PCI_DevAddr addr, uint8_t offset);

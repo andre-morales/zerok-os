@@ -1,4 +1,5 @@
 #pragma once
 
-bool pnp_init();
-void pnp_enumerateDevices();
+bool isa_init();
+void isa_setupPNP();
+void isa_enumerateDevices();

@@ -1,8 +1,14 @@
 #include "pci.h"
 #include "io.h"
 #include "lib/stdio.h"
+#include "lib/stdlib.h"
+#include "defs.h"
 
-PCI_InitArgs initArgs;
+EnumCallback callbackFunction = NULL;
+
+void pci_enumBus(uint8_t bus);
+void pci_enumSlot(uint8_t bus, uint8_t slot);
+bool pci_enumFunction(uint8_t bus, uint8_t slot, uint8_t function);
 
 bool pci_init(const PCI_InitArgs* args) {
 	// Check if version is valid
@@ -11,10 +17,12 @@ bool pci_init(const PCI_InitArgs* args) {
 
 	if (major == 0 && minor == 0) {
 		log(LOG_ERROR, "PCI: Not supported\n");
+
+		dbg_break();
 		return false;
 	}
 
-	initArgs = *args;
+	//initArgs = *args;
 	log(LOG_OK, "PCI: Version %i.%i\n", (int)major, (int)minor);
 	
 	// Check access mechanisms
@@ -34,113 +42,128 @@ bool pci_init(const PCI_InitArgs* args) {
 
 	if (!mech1) {
 		log(LOG_ERROR, "PCI: Config mechanism 1 not supported.\n");
-		return;
-	}
-	
-	pci_enumerate();
-}
-
-bool pci_enumFunction(uint8_t bus, uint8_t device, uint8_t function) {
-	uint16_t vendorID = pci_getVendorID(bus, device, function);
-	if (vendorID == 0xFFFF) return false;
-	
-	uint16_t deviceID = pci_getDeviceID(bus, device, function);
-	
-	fprintf(serial_out, "PCI: %i:%i:%i: \n", (int)bus, (int)device, (int)function);
-	fprintf(serial_out, "  Vendor: %x\n", vendorID);
-	fprintf(serial_out, "  Device: %x\n", deviceID);
-
-	uint8_t fClass = pci_getBaseClass(bus, device, function);
-	uint8_t fSubClass = pci_getSubClass(bus, device, function);
-	
-	fprintf(serial_out, "  Class: %x\n", fClass);
-	fprintf(serial_out, "  Subclass: %x\n", fSubClass);
-
-	printf("PCI %i:%i:%i: %x#%x %x/%x\n", (int)bus, (int)device, (int)function, vendorID, deviceID, fClass, fSubClass);
-
-	if (fClass == 0x1) {
-		printf("PCI Storage: %i:%i:%i: \n", (int)bus, (int)device, (int)function);
-		printf("  Vendor: %x\n", vendorID);
-		printf("  Device: %x\n", deviceID);
-		printf("  Subclass: %x\n", fSubClass);
-	}
-
-	// If function is a PCI-to-PCI bridge
-	if (fClass == 6 && fSubClass == 4) {
-		// Secondary bus number
-		uint8_t secondBus = pci_readConfigB(bus, device, function, 0x19);
-
-		pci_enumerateBus(secondBus);
+		return false;
 	}
 
 	return true;
 }
 
-void pci_enumDevice(uint8_t bus, uint8_t device) {
-	uint16_t vendor = pci_getVendorID(bus, device, 0);
+void pci_enumerate(EnumCallback fn) {
+	callbackFunction = fn;
 
-	// If no device
-	if (vendor == 0xFFFF) return;
-
-	// Enumerate root function
-	pci_enumFunction(bus, device, 0);
-
-	// If multi-function, try enumerate all of them
-	uint8_t devHeaderType = pci_getHeaderType(bus, device, 0);
-	if ((devHeaderType & 0x80) == 1) {
-		for (int f = 1; f < 8; f++) {
-			pci_enumFunction(bus, device, f);
-		}
-	}
-}
-
-void pci_enumerateBus(uint8_t bus) {
-	for (int i = 0; i < 32; i++) {
-		pci_enumDevice(bus, i);
-	}
-}
-
-void pci_enumerate() {
 	// Check if root bus is multi-function
-	uint8_t rootBusType = pci_getHeaderType(0, 0, 0);
+	PCI_DevAddr addr = pci_devAddr(0, 0, 0);
+	uint8_t rootBusType = pci_devHeaderType(addr);
 
 	// If root bus is single function
 	if ((rootBusType & 0x80) == 0) {
 		log(LOG_MSG, "PCI: Single-function root bus.\n");
-		pci_enumerateBus(0);
-	} else {
+		pci_enumBus(0);
+	}
+	else {
 		log(LOG_ERROR, "PCI: Multi-function root bus unsupported.\n");
 		return;
 	}
 }
 
-uint8_t pci_getBaseClass(uint8_t bus, uint8_t dev, uint8_t func) {
-	return pci_readConfigB(bus, dev, func, 0xB);
+void pci_enumBus(uint8_t bus) {
+	for (int i = 0; i < 32; i++) {
+		pci_enumSlot(bus, i);
+	}
 }
 
-uint8_t pci_getSubClass(uint8_t bus, uint8_t dev, uint8_t func) {
-	return pci_readConfigB(bus, dev, func, 0xA);
+void pci_enumSlot(uint8_t bus, uint8_t slot) {
+	PCI_DevAddr addr = pci_devAddr(bus, slot, 0);
+
+	uint16_t vendor = pci_devVendorID(addr);
+
+	// If no device
+	if (vendor == 0xFFFF) return;
+
+	// Enumerate root function
+	pci_enumFunction(bus, slot, 0);
+
+	// If multi-function, try enumerating all remaining functions
+	uint8_t devHeaderType = pci_devHeaderType(addr);
+
+	if ((devHeaderType & 0x80) != 0) {
+		for (int f = 1; f < 8; f++) {
+			pci_enumFunction(bus, slot, f);
+		}
+	}
+}
+bool pci_enumFunction(uint8_t bus, uint8_t slot, uint8_t function) {
+	PCI_DevAddr addr = pci_devAddr(bus, slot, function);
+
+	uint16_t vendorID = pci_devVendorID(addr);
+	if (vendorID == 0xFFFF) return false;
+
+	uint16_t deviceID = pci_devDeviceID(addr);
+
+	PCI_Device device;
+	device.address = addr;
+	device.vendorID = vendorID;
+	device.deviceID = deviceID;
+	device.dClass = pci_devBaseClass(addr);
+	device.dSubClass = pci_devSubClass(addr);
+
+	// If device is a bridge
+	if (device.dClass == 6) {
+		// If function is a PCI-to-PCI bridge
+		if (device.dSubClass == 4) {
+			// Secondary bus number
+			uint8_t secondBus = pci_readConfigB(addr, 0x19);
+
+			pci_enumBus(secondBus);
+		}
+	} else {
+		callbackFunction(&device);
+	}
+
+	return true;
 }
 
-uint8_t pci_getHeaderType(uint8_t bus, uint8_t dev, uint8_t func) {
-	return pci_readConfigB(bus, dev, func, 0x0E);
+uint8_t inline pci_devBaseClass(PCI_DevAddr addr) {
+	return pci_readConfigB(addr, 0xB);
 }
 
-uint16_t pci_getDeviceID(uint8_t bus, uint8_t dev, uint8_t func) {
-	return pci_readConfigW(bus, dev, func, 0x02);
+uint8_t pci_devSubClass(PCI_DevAddr addr) {
+	return pci_readConfigB(addr, 0xA);
 }
 
-uint16_t pci_getVendorID(uint8_t bus, uint8_t dev, uint8_t func) {
-	return pci_readConfigW(bus, dev, func, 0x00);
+uint8_t pci_devHeaderType(PCI_DevAddr addr) {
+	return pci_readConfigB(addr, 0x0E);
 }
 
-uint32_t pci_readConfigL(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset) {
+uint16_t pci_devDeviceID(PCI_DevAddr addr) {
+	return pci_readConfigW(addr, 0x02);
+}
+
+uint16_t pci_devVendorID(PCI_DevAddr addr) {
+	return pci_readConfigW(addr, 0x00);
+}
+
+uint8_t pci_devProgInterface(PCI_DevAddr addr) {
+	return pci_readConfigB(addr, 0x09);
+}
+
+uint32_t pci_devBAR(PCI_DevAddr dev, uint8_t barN) {
+	return pci_readConfigL(dev, 0x10 + barN * 4);
+}
+
+PCI_DevAddr pci_devAddr(uint8_t bus, uint8_t slot, uint8_t func) {
+	return (bus << 16) | (slot << 11) | (func << 8);
+}
+
+void pci_addrToPath(PCI_DevAddr addr, uint8_t* bus, uint8_t* slot, uint8_t* func) {
+	*func = (addr >> 8) & 7;
+	*slot = (addr >> 11) & 31;
+	*bus = (addr >> 16) & 255;
+}
+
+uint32_t pci_readConfigL(PCI_DevAddr devAddr, uint8_t offset) {
 	// Prepare the bitfield
-	uint32_t bus_bits = bus << 16;
-	uint32_t dev_bits = device << 11;
-	uint32_t fun_bits = function << 8;
-	uint32_t off_bits = offset & 0xFC;
-	uint32_t addr = 0x80000000 | bus_bits | dev_bits | fun_bits | off_bits;
+	uint32_t addr = 0x80000000 | devAddr | (offset & 0xFC);
 
 	// Output config address into 32 bit IO port 0xCF8
 	io_outl(0xCF8, addr);
@@ -149,8 +172,8 @@ uint32_t pci_readConfigL(uint8_t bus, uint8_t device, uint8_t function, uint8_t 
 	return io_inl(0xCFC);
 }
 
-uint16_t pci_readConfigW(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset) {
-	uint32_t reg = pci_readConfigL(bus, device, function, offset);
+uint16_t pci_readConfigW(PCI_DevAddr addr, uint8_t offset) {
+	uint32_t reg = pci_readConfigL(addr, offset);
 
 	// Shift register depending on the offset
 	uint32_t v = reg >> ((offset & 2) * 8);
@@ -159,8 +182,8 @@ uint16_t pci_readConfigW(uint8_t bus, uint8_t device, uint8_t function, uint8_t 
 	return v & 0xFFFF;
 }
 
-uint16_t pci_readConfigB(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset) {
-	uint32_t reg = pci_readConfigL(bus, device, function, offset);
+uint8_t pci_readConfigB(PCI_DevAddr addr, uint8_t offset) {
+	uint32_t reg = pci_readConfigL(addr, offset);
 
 	// Shift register depending on the offset
 	uint32_t v = reg >> ((offset & 3) * 8);

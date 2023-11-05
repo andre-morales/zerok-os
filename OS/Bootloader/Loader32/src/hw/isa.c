@@ -6,53 +6,37 @@
 #include "lib/stdio.h"
 #include "lib/stdlib.h"
 
-#pragma pack(push, 1)
-typedef struct {
-	char signature[4];						
-	uint8_t version;						
-	uint8_t length;							
-	uint16_t control;						
-	uint8_t checksum;						
-	uintptr_t eventNotificationFlagAddr;	
-
-	uint16_t realEntryPoint;
-	uint16_t realCodeSegment;
-
-	uint16_t protEntryPoint;
-	uint32_t protCodeSegmentBase;
-
-	char oem[4];
-	uint16_t realDataSegment;
-	uint32_t protDataSegmentBase;
-} PNP_Installation;
-#pragma pack(pop)
-
-bool pnp_validate(char*);
-void pnp_setupEntry();
-uint16_t NO_INLINE pnp_getNumberOfDeviceNodes(far_ptr16, far_ptr16, uint16_t);
+void isa_setupPNPEntryProc();
+bool isa_validatePNP(char*);
+short pnp_getNumberOfDeviceNodes(far_ptr16, far_ptr16);
 
 PNP_Installation* install = NULL;
-uint32_t pnpCodeSegment;
-uint16_t pnpDataSegment;
 far_ptr16 pnpEntryProc;
+uint16_t pnpDataSegment;
 
-bool pnp_init() {
+bool isa_init() {
 	log(LOG_MSG, "ISA: Initializing\n");
 
-	char* ptr = (char*)0xF0000;
-	while (ptr < (char*)0xFFFFF) {
-		if (strncmp(ptr, "$PnP", 4) == 0) {
-			if (pnp_validate(ptr)) {
-				install = (PNP_Installation*)ptr;
-				pnp_setupEntry();
-				return true;
-			}
-		}
+	// Look for $PnP structure in the 64KiB area below 1MiB
+	uintptr_t ptr;
+	for (ptr = 0xF0000; ptr < 0xFFFFF; ptr += 16) {
+		char* str = (char*)ptr;
 
-		ptr += 16;
+		if (strncmp(str, "$PnP", 4) != 0) continue;
+
+		if (isa_validatePNP(str)) {
+			install = (PNP_Installation*)ptr;
+			return true;
+		}
 	}
 
 	return false;
+}
+
+void isa_setupPNP() {
+	log(LOG_INFO, "ISA: Pnp Version: %i\n", install->version);
+
+	isa_setupPNPEntryProc();
 }
 
 void isa_enumerateDevices() {
@@ -61,22 +45,32 @@ void isa_enumerateDevices() {
 
 	far_ptr16 numNodesPtr = farptr_data(&numNodes);
 	far_ptr16 nodeSizePtr = farptr_data(&nodeSize);
-	uint16_t result = pnp_getNumberOfDeviceNodes(numNodesPtr, nodeSizePtr, pnpDataSegment);
+	int ret = pnp_getNumberOfDeviceNodes(numNodesPtr, nodeSizePtr);
+	if (ret != 0) {
+		log(LOG_ERROR, "ISA: PNP call failed with 0x%x!\n", ret);
+		return;
+	}
+
+	if (numNodes == 0xEA || nodeSize == 0xDEAD) {
+		log(LOG_ERROR, "ISA: Enumeration failed!\n");
+		return;
+	}
 
 	printf("Nodes: 0x%x, Node size: 0x%x\n", (int)numNodes, (int)nodeSize);
 	printf("  : 0x%x, 0x%x\n", (int)&numNodes, (int)&nodeSize);
 }
 
-void pnp_setupEntry() {
+void isa_setupPNPEntryProc() {
 	uint32_t codeBase = install->protCodeSegmentBase;
 	uint32_t dataBase = install->protDataSegmentBase;
 
-	uint32_t addr = install->protCodeSegmentBase + install->protEntryPoint;
-	log(LOG_MSG, "ISA: Setting up entry point %xh:%xh\n", (int)install->protCodeSegmentBase, (int)install->protEntryPoint);
-	
 	// Allocate 2 selectors in the GDT for CS and DS required
 	uint16_t cs = gdt_push();
 	uint16_t ds = gdt_push();
+
+	log(LOG_INFO, "ISA: Setting up PnP entry point: 0x%x\n", (int)install->protEntryPoint);
+	log(LOG_MSG,  "     CS: 0x%x : 0x%x\n", cs, codeBase);
+	log(LOG_MSG,  "     DS: 0x%x : 0x%x\n", ds, dataBase);
 
 	// Setup the code segment to be 16-bit with byte granularity
 	uint8_t csAccess = gdt_accessByte(true, 0, 1, true, 0, true, 0);
@@ -91,23 +85,20 @@ void pnp_setupEntry() {
 	// Record them in the GDT.
 	gdt_record(cs, csEntry);
 	gdt_record(ds, dsEntry);
-
-	log(LOG_MSG, "ISA: CS[%x]: %x, DS[%x]: %x\n", (int)cs, codeBase, (int)ds, dataBase);
-
 	gdt_reload();
-	log(LOG_OK, "ISA: Entry point is ready\n");
-
-	pnpCodeSegment = cs;
+	
 	pnpDataSegment = ds;
 
 	pnpEntryProc.segment = cs;
 	pnpEntryProc.offset = install->protEntryPoint;
+
+	log(LOG_OK, "ISA: Entry point is ready\n");
 }
 
-bool pnp_validate(char* ptr) {
+bool isa_validatePNP(char* ptr) {
 	log(LOG_INFO, "ISA: Validating $PnP at 0x%x\n", (int)ptr);
 
-	uint8_t length = ((ISA_Installation*)ptr)->length;
+	uint8_t length = ((PNP_Installation*)ptr)->length;
 
 	uint8_t sum = 0;
 
@@ -119,14 +110,25 @@ bool pnp_validate(char* ptr) {
 		log(LOG_OK, "ISA: Structure is valid\n");
 		return true;
 	}
+
 	return false;
 }
 
-uint16_t pnp_getNumberOfDeviceNodes(far_ptr16 numNodes, far_ptr16 nodeSize, uint16_t biosDataSegment) {
-	dbg_break();
+short pnp_getNumberOfDeviceNodes(far_ptr16 numNodes, far_ptr16 nodeSize) {
+	uint16_t args[] = { 0, numNodes.offset, numNodes.segment, nodeSize.offset, nodeSize.segment, pnpDataSegment };
 
-	uint16_t args[] = { 0, numNodes.offset, numNodes.segment, nodeSize.offset, nodeSize.segment, biosDataSegment };
-
-	call_far16(pnpEntryProc, args, 6);
-	return 0;
+	short ret = call_far16(pnpEntryProc, args, 6);
+	return ret;
 }
+
+/*
+
+struct PNP_DeviceNode {
+	uint16_t size;
+	uint8_t handle;
+	uint32_t productID;
+	uint8_t deviceType[3];
+	uint16_t deviceAttribute;
+};
+
+*/

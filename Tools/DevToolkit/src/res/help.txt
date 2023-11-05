@@ -15,6 +15,8 @@ burn <input>: Writes <input> file into another file, with configurable offsets
   -length <number>: How many bytes of the input should be written. If not
     specified, the whole input will be written into the destination.
 
+partitions <disk>: Lists the given partitions in an MBR <disk> file
+	
 syncdisk <disk>:
   -with <path>
 
