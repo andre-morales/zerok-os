@@ -1,3 +1,4 @@
+; -- PASME Version 1.2.0
 %define PORT 0x3F8 
 
 %macro outb 2
@@ -11,10 +12,14 @@
 	in al, dx
 %endmacro
 
-var bool Serial.initialized
+extern hexNumToStr
 
-Serial.init: {
-	push ax | push dx
+
+[SECTION .text]
+
+Serial.init: 
+	push ax 
+ push dx
 
 	mov byte [Serial.initialized], 0x00
 	outb PORT+1, 0x00 ; Disable all interrupts
@@ -39,11 +44,12 @@ Serial.init: {
 	jmp .end
 	
 .end:
-	pop dx | pop ax 
+	pop dx 
+ pop ax 
 	ret
-}
 
-Serial.putch: {
+
+Serial.putch: 
 	cmp byte [Serial.initialized], 0x01
 	jne .end
 	
@@ -67,47 +73,63 @@ Serial.putch: {
 
 .end:
 	ret
-}
 
-Serial.print: {
-	push ax | push cx | push dx
+
+Serial.print: 
+	push ax 
+ push cx 
+ push dx
 	
 .putc:
 	lodsb
-	test al, al | jz .end
+	test al, al 
+ jz .end
 	
 	call Serial.putch
 	jmp .putc
 	
 .end:
-	pop dx | pop cx | pop ax
+	pop dx 
+ pop cx 
+ pop ax
 	ret
-}
 
-Serial.printHexNum {
-	CLSTACK
-	farg word number
-	lvar char[8] str
-	ENTERFN
+
+Serial.printHexNum 
+push bp
+mov bp, sp
+sub sp, 8
 	
-	push ds | push es
-	push ax | push dx
-	push si | push di
+	push ds 
+ push es
+	push ax 
+ push dx
+	push si 
+ push di
 	
 	mov di, ss
 	mov es, di
 	mov ds, di
 		
-	mov ax, [$number]
-	lea di, [$str]
+	mov ax, [bp + 4]
+	lea di, [bp - 8]
 	call hexNumToStr
 	
 	mov si, di
 	call Serial.print
 	
-	pop di | pop si
-	pop dx | pop ax
-	pop es | pop ds
+	pop di 
+ pop si
+	pop dx 
+ pop ax
+	pop es 
+ pop ds
 		
-	LEAVEFN
-}
+mov sp, bp
+pop bp
+ret 2
+
+
+[SECTION .data]
+@bss:
+	Serial.initialized: resb 1

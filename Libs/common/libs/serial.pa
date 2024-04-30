@@ -11,7 +11,11 @@
 	in al, dx
 %endmacro
 
+extern hexNumToStr
+
 var bool Serial.initialized
+
+[SECTION .text]
 
 Serial.init: {
 	push ax | push dx
@@ -111,3 +115,6 @@ Serial.printHexNum {
 		
 	LEAVEFN
 }
+
+[SECTION .data]
+@bss:

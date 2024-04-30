@@ -43,6 +43,7 @@ public class DevToolkitCLI {
 		switch(order) {
 		case "help" -> helpOrder(orderLine);
 		case "burn" -> burnOrder(orderLine);
+		case "burnvbr" -> burnVBROrder(orderLine);
 		case "mount" -> mountOrder(orderLine);
 		case "unmount" -> unmountOrder(orderLine);
 		case "syncdisk" -> syncDiskOrder(orderLine);
@@ -112,6 +113,102 @@ public class DevToolkitCLI {
 		var written = DiskBurner.transferFiles(inputFile, inputOffset, diskPath, outputOffset, fileLength);
 
 		System.out.println("Written " + written + " bytes.");
+	}
+	
+	void burnVBROrder(String[] orderLine) {
+		String input = null;
+		String output = null;
+		int inputOffset = 0;
+		int partitionNumber = -1;
+	
+		// Interpret order arguments
+		for (int i = 1; i < orderLine.length; i++) {
+			var arg = orderLine[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					case "-srcOff" -> inputOffset = parseNumberExpression(orderLine[++i]);
+					case "-partition" -> partitionNumber = parseNumberExpression(orderLine[++i]);
+					case "-to" -> output = orderLine[++i];
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (input != null) {
+					throw new CLIException("Argument " + arg + " specifies an input but an input was already provided before.");
+				}
+				
+				input = arg;
+			}
+		}
+		
+		if (input == null) throw new CLIException("No input file was specified!");
+		if (output == null) throw new CLIException("No output disk was specified! Use the -to switch do so.");
+		if (partitionNumber == -1) throw new CLIException("No partition specified. Use -partition to specify one.");
+		
+		System.out.print("Burning '" + input + "'[0x" + Integer.toHexString(inputOffset).toUpperCase());
+		System.out.print("] to '" + output + "' Partition [" + partitionNumber + "]");
+
+		// Open output disk file
+		var diskPath = new File(output);
+
+		// Open input file
+		var inputFile = new File(input);
+		
+		var partitions = DiskPartitions.listPartitions(diskPath);
+		var partition = partitions.get(partitionNumber);
+		
+		var fat16 = new FAT16(partition);
+		fat16.burnVBR(inputFile, inputOffset);
+		
+		System.out.println("Finished.");
+	}
+	
+	void burnReservedSectors(String[] orderLine) {
+		String input = null;
+		String output = null;
+		int inputOffset = 0;
+		int partitionNumber = -1;
+	
+		// Interpret order arguments
+		for (int i = 1; i < orderLine.length; i++) {
+			var arg = orderLine[i];
+			
+			if (arg.startsWith("-")) {
+				switch (arg) {
+					case "-srcOff" -> inputOffset = parseNumberExpression(orderLine[++i]);
+					case "-partition" -> partitionNumber = parseNumberExpression(orderLine[++i]);
+					case "-to" -> output = orderLine[++i];
+					default -> throw new CLIException("Unknown switch: " + arg);
+				}
+			} else {
+				if (input != null) {
+					throw new CLIException("Argument " + arg + " specifies an input but an input was already provided before.");
+				}
+				
+				input = arg;
+			}
+		}
+		
+		if (input == null) throw new CLIException("No input file was specified!");
+		if (output == null) throw new CLIException("No output disk was specified! Use the -to switch do so.");
+		if (partitionNumber == -1) throw new CLIException("No partition specified. Use -partition to specify one.");
+		
+		System.out.print("Burning '" + input + "'[0x" + Integer.toHexString(inputOffset).toUpperCase());
+		System.out.print("] to '" + output + "' Partition [" + partitionNumber + "]");
+
+		// Open output disk file
+		var diskPath = new File(output);
+
+		// Open input file
+		var inputFile = new File(input);
+		
+		var partitions = DiskPartitions.listPartitions(diskPath);
+		var partition = partitions.get(partitionNumber);
+		
+		var fat16 = new FAT16(partition);
+		fat16.burnReservedSectors(inputFile, inputOffset);
+		
+		System.out.println("Finished.");
 	}
 	
 	/**

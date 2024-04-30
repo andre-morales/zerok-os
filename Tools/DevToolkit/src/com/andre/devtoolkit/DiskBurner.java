@@ -45,6 +45,8 @@ public class DiskBurner {
 	
 	static long transferFiles(File input, long srcOffset, File output, long dstOffset, long length) {
 		try {
+			if (length <= 0) return 0;
+			
 			// Open output
 			var outputStream = FileChannel.open(output.toPath(), StandardOpenOption.WRITE);
 			

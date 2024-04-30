@@ -1,10 +1,13 @@
 package com.andre.devtoolkit;
 
+import java.io.File;
+
 /**
  *
  * @author Andre
  */
 public class DiskPartition {
+	public File disk;
 	public int id;
 	public int startSector;
 	public int sizeInSectors;

@@ -1,0 +1,4 @@
+REM ${YASM} build/bstrap/head.asm -f elf -o build/bin/bstrap/head.o
+	REM ${LD} -T bstrap/head.ld build/bin/bstrap/head.o -o build/bin/bstrap/head.elf
+	REM objcopy -O binary -j .text -j .data -j .bss build/bin/bstrap/head.elf build/bin/bstrap/head.img
+	

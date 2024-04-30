@@ -21,6 +21,7 @@ public class DiskPartitions {
 			if (part.type == 0) return partitions;
 			
 			part.id = i;
+			part.disk = disk;
 			
 			partitions.add(part);
 		}
@@ -36,10 +37,10 @@ public class DiskPartitions {
 		
 		part.type = type;
 		
-		int sectors = Util.byteArrayToInt(entry, offset + 0x0C);
+		int sectors = Numbers.byteArrayToInt(entry, offset + 0x0C);
 		part.sizeInSectors = sectors;
 		
-		int start = Util.byteArrayToInt(entry, offset + 0x08);
+		int start = Numbers.byteArrayToInt(entry, offset + 0x08);
 		part.startSector = start;
 		
 		return part;

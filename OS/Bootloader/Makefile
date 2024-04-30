@@ -5,7 +5,8 @@ PartitionStart=0x10000
 # -- Tools --
 PASME=tools\pasme
 DEVTK=tools\devtk
-
+YASM=yasm
+LD=tools\ld
 # -- Flags --
 # Pasme Transpiler flags
 PT_FLAGS=-I ../../Libs
@@ -23,7 +24,7 @@ boot_lba: bstrap/boot.pa
 	-mkdir build\bin\bstrap
 	${PASME} transpile bstrap/boot.pa -D LBA_AVAILABLE -to build/bstrap/boot.asm ${PT_FLAGS}
 	${PASME} assemble build/bstrap/boot.asm -to build/bin/bstrap/boot.img
-	${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
+	REM ${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
 
 # -- Boot [CHS] --
 boot_chs: bstrap/boot.pa
@@ -39,11 +40,11 @@ head: bstrap/head.pa
 	${PASME} assemble  build/bstrap/head.asm -to build/bin/bstrap/head.img
 	${DEVTK} burn build/bin/bstrap/head.img -to "${TestDisk}" -dstOff ${PartitionStart}+0x200 -length 3072
 
+	
 # -- Bootstrapper --
 bstrap: bstrap/bootstrap.pa
 	${PASME} transpile bstrap/bootstrap.pa -to build/bstrap/bootstrap.asm ${PT_FLAGS}
 	${PASME} assemble  build/bstrap/bootstrap.asm -to build/bin/bstrap/BSTRAP.BIN
-
 	copy "build\bin\bstrap\BSTRAP.BIN" "diskDropbox\ZKOS\BSTRAP.BIN"
 
 # -- Loader Core --

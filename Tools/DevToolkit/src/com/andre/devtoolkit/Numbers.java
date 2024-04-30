@@ -4,7 +4,7 @@ package com.andre.devtoolkit;
  *
  * @author Andre
  */
-public class Util {
+public class Numbers {
 	public static String toStringHexBytes(byte[] bytes) {
 		var sb = new StringBuilder();
 		
@@ -22,4 +22,9 @@ public class Util {
                 ((bytes[offset + 0] & 0xFF) << 0);
     }
 
+    public static short byteArrayToShort(byte[] bytes, int offset) {
+        return (short) (((bytes[offset + 1] & 0xFF) << 8)  |
+                       (( bytes[offset + 0] & 0xFF) << 0));
+    }
+  
 }
