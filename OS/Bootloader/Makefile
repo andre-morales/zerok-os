@@ -16,42 +16,46 @@ PA_FLAGS=-w-pp-macro-redef-multi
 
 .PHONY: all boot_lba boot_chs head bstrap mountdisk unmountdisk clean
 
+default:
+	-@echo You must specify a target.
+	-@echo Build targets: all, boot_lba, boot_chs, head, bstrap, loader
+	-@echo Tool targets: clean, mountdisk, unmountdisk
+
 all: boot_lba head bstrap loader
 
 # -- Boot [LBA] --
-boot_lba: bstrap/boot.pa
+boot_lba: Bootstrap/boot.asm
 	-mkdir build\bstrap
 	-mkdir build\bin\bstrap
-	${PASME} transpile bstrap/boot.pa -D LBA_AVAILABLE -to build/bstrap/boot.asm ${PT_FLAGS}
-	${PASME} assemble build/bstrap/boot.asm -to build/bin/bstrap/boot.img
+	${PASME} transpile Bootstrap/boot.asm -D LBA_AVAILABLE -to build/bstrap/boot.nasm ${PT_FLAGS}
+	${PASME} assemble build/bstrap/boot.nasm -to build/bin/bstrap/boot.img
 	REM ${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
 
 # -- Boot [CHS] --
-boot_chs: bstrap/boot.pa
-	-mkdir build\bstrap
-	-mkdir build\bin\bstrap
-	${PASME} transpile bstrap/boot.pa -to build/bstrap/boot.asm ${PT_FLAGS}
-	${PASME} assemble  build/bstrap/boot.asm -to build/bin/bstrap/boot.img
+boot_chs: Bootstrap/boot.asm 
+	-@mkdir build\bstrap
+	-@mkdir build\bin\bstrap
+	${PASME} transpile Bootstrap/boot.asm -to build/bstrap/boot.nasm ${PT_FLAGS}
+	${PASME} assemble  build/bstrap/boot.nasm -to build/bin/bstrap/boot.img
 	${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
 
 # -- Head --
-head: bstrap/head.pa
-	${PASME} transpile bstrap/head.pa -to build/bstrap/head.asm ${PT_FLAGS}
-	${PASME} assemble  build/bstrap/head.asm -to build/bin/bstrap/head.img
+head: Bootstrap/head.asm
+	${PASME} transpile Bootstrap/head.asm -to build/bstrap/head.nasm ${PT_FLAGS}
+	${PASME} assemble  build/bstrap/head.nasm -to build/bin/bstrap/head.img
 	${DEVTK} burn build/bin/bstrap/head.img -to "${TestDisk}" -dstOff ${PartitionStart}+0x200 -length 3072
-
 	
 # -- Bootstrapper --
-bstrap: bstrap/bootstrap.pa
-	${PASME} transpile bstrap/bootstrap.pa -to build/bstrap/bootstrap.asm ${PT_FLAGS}
-	${PASME} assemble  build/bstrap/bootstrap.asm -to build/bin/bstrap/BSTRAP.BIN
-	copy "build\bin\bstrap\BSTRAP.BIN" "diskDropbox\ZKOS\BSTRAP.BIN"
+bstrap: Bootstrap/bootstrap.asm
+	${PASME} transpile Bootstrap/bootstrap.asm -to build/bstrap/bootstrap.nasm ${PT_FLAGS}
+	${PASME} assemble  build/bstrap/bootstrap.nasm -to build/bin/bstrap/BSTRAP.BIN
+	copy "build\bin\bstrap\BSTRAP.BIN" "dropbox\ZKOS\BSTRAP.BIN"
 
 # -- Loader Core --
-
 loader:
 	make -C Loader32 all
 
+# -- Utilities --
 clean:
 	make -C Loader32 clean
 	del build\*.* /q
@@ -60,7 +64,6 @@ clean:
 	del build\loader\stdlib\*.* /q
 	del build\bstrap\*.* /q
 
-# -- Utilities --
 syncdisk:
 	${DEVTK} syncdisk "${TestDisk}" -with diskDropbox\ZKOS -at Z:\ZKOS\
 	
