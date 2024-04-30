@@ -17,7 +17,7 @@ all: loader
 LDR_OBJS=$(addprefix build/obj/,$(LOADER_OBJS))
 
 loader: build/ZKLOADER.ELF
-	copy "build\ZKLOADER.ELF" "..\diskDropbox\ZKOS\ZKLOADER.ELF"
+	copy "build\ZKLOADER.ELF" "..\dropbox\ZKOS\ZKLOADER.ELF"
 
 # Final binary
 build/ZKLOADER.ELF: linker_script.ld $(LDR_OBJS) | build

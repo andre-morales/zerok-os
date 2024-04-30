@@ -668,8 +668,8 @@ setCursor: {
 ret }
 
 /* Code includes */
-#include <common/drive.pa>
-#include <common/console.pa>
+#include <common/drive.asm>
+#include <common/console.asm>
 
 PartitionTypeNamePtrIndexArr: {
 	db 0, 1, 1, 1, 1, 5, 2, 6

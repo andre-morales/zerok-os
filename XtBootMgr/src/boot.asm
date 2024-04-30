@@ -123,7 +123,7 @@ halt: {
 	hlt
 jmp halt }
 
-#include <common/console.pa>
+#include <common/console.asm>
 
 @rodata:
 

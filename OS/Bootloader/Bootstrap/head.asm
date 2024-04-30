@@ -244,10 +244,10 @@ InitDrive: {
 ret }
 
 ; Include defitions of a few commonly used functions
-#include <common/console.pa>
-#include <common/drive.pa>
-#include <common/fat1x.pa>
-#include <common/serial.pa>
+#include <common/console.asm>
+#include <common/drive.asm>
+#include <common/fat1x.asm>
+#include <common/serial.asm>
 
 @rodata:
 times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.
