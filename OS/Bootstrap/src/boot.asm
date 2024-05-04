@@ -25,7 +25,7 @@
 [SECTION .text]
 jmp start | nop
 
-; Space for BPB.
+; Dummy space for BPB.
 times (21 + 12 + 26) db 0x11
 
 ; Actual start of code at 0x3E

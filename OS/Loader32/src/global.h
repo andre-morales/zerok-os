@@ -2,7 +2,7 @@
 This file is included in every other source file directly by GCC.
 It should NOT be included manually.
 
-The contents in this file are invisible to Intellisense.
+The contents in this file should be invisible to Intellisense.
 */
 
 #pragma once

@@ -7,12 +7,10 @@
 
 [BITS 16]
 [CPU 386]
-[ORG 0x500]
 
 ; Physical Map
-; -- [  0  -  400] IVT
-; -- [ 400 -  500] Data Area
-; -- [ 500 -  520] CPU Structures
+; -- [  0  -  500] IVT and BIOS Data Area
+; -- [ 500 -  520] Our CPU Structures
 ; -- [	 .....	 ] 
 ; -- [ 700 -   # ] Stage 3 (us)
 ; -- [1200 -   # ] FAT16 Cluster Buffer
@@ -52,9 +50,9 @@ var void LoaderStruct
 	var byte pci.lastBus
 	var int pci.entry
 var void LoaderStruct.end
-
-SECTION stack vstart=0x500 progbits
-
+ 
+;;;; SECTION stack vstart=0x500 progbits
+[SECTION .text]
 dw 'Zk'
 
 ; GDT Descriptor
@@ -85,31 +83,15 @@ GDT: {
 	db 0		 ; Base (24:31)
 .End: }
 
-times 256-($-$$) db 0x00 ; Fill the reserved stack section
+times 512-($-$$) db 0x00 ; Fill everything until 0x700
 
-SECTION dummy vstart=0x600 progbits
-
-helloworld:
-	push bx
-	
-	add bx, 1
-	
-	push bx
-	
-	pop ax
-	pop ax
-retf
-
-times 256-($-$$) db 0x00 ; Fill the reserved stack section
-
-SECTION .text vstart=0x700 follows=dummy
 jmp start
 
 dw Drive ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
 dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
 
 start: {
-	mov sp, 0x7CF0
+	mov sp, 0x7FF0
 
 	Print(."\n-- &bZk&3Loader &2Bootstrap &cv$#VERSION#\n")
 	
@@ -366,5 +348,5 @@ FileNotFoundOnDir: {
 @rodata:
 
 ; Variables declared will appear here
-SECTION .bss
+[SECTION .bss]
 @bss:

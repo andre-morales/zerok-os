@@ -3,9 +3,9 @@ TestDisk=../../Test Machines/vdisk.vhd
 PartitionStart=0x10000
 
 # -- Tools --
-PASME=..\..\Tools\pasme
-DEVTK=..\..\Tools\devtk
-LD=..\..\Tools\ld
+PASME=..\\..\\Tools\\pasme
+DEVTK=..\\..\\Tools\\devtk
+LD=..\\..\\Tools\\ld
 YASM=yasm
 
 # -- Flags --
@@ -46,27 +46,21 @@ boot_chs: src/boot.asm
 head: src/head.asm
 	${PASME} transpile src/head.asm -to build/int/head.nasm ${PT_FLAGS}
 	${YASM} build/int/head.nasm -f elf -o build/int/head.o
-	${LD} build/int/head.o -T src/head.ld -o build/bin/head.img
+	${LD} build/int/head.o ../../Libs/comm/build/strings.o ../../Libs/comm/build/serial.o -T src/head.ld -o build/bin/head.img
 	${DEVTK} burn-reserved-sectors build/bin/head.img -to "${TestDisk}" -partition 0
 	
 # -- srcper --
 bstrap: src/bootstrap.asm
-	${PASME} transpile src/bootstrap.asm -to build/bstrap/bootstrap.nasm ${PT_FLAGS}
-	${PASME} assemble  build/bstrap/bootstrap.nasm -to build/bin/bstrap/BSTRAP.BIN
-	copy "build\bin\bstrap\BSTRAP.BIN" "..\..\Dropbox\ZKOS\BSTRAP.BIN"
-
-# -- Loader Core --
-loader:
-	make -C Loader32 all
+	${PASME} transpile src/bootstrap.asm -to build/int/bootstrap.nasm ${PT_FLAGS}
+	${YASM} build/int/bootstrap.nasm -f elf -o build/int/bootstrap.o
+	${LD} build/int/bootstrap.o -T src/bootstrap.ld -o build/bin/bstrap.bin
+	copy "build\bin\BSTRAP.BIN" "..\..\Dropbox\ZKOS\BSTRAP.BIN"
 
 # -- Utilities --
 clean:
-	make -C Loader32 clean
 	del build\*.* /q
 	del build\bin\*.* /q
-	del build\loader\*.* /q
-	del build\loader\stdlib\*.* /q
-	del build\bstrap\*.* /q
+	del build\int\*.* /q
 
 syncdisk:
 	${DEVTK} syncdisk "${TestDisk}" -with diskDropbox\ZKOS -at Z:\ZKOS\

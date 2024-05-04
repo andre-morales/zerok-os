@@ -1,7 +1,7 @@
 OUTPUT_FORMAT(binary)
 
 SECTIONS {
-	. = 0x6000;
+	. = 0x500;
 	
 	.text : {
 		*(.text)
@@ -15,4 +15,3 @@ SECTIONS {
 		*(.bss)
 	}
 }
-

@@ -24,8 +24,9 @@
 
 ; Include a few macro definition files
 #include "version.h"
-#include <common/console.h>
-#include <common/serial.h>
+#include <comm/src/strings.h>
+#include <comm/src/serial.h>
+#include <comm/src/console.h>
 
 [SECTION .text]
 ; Stores in the file our signature and sector count which
@@ -126,7 +127,6 @@ FileNotFoundOnDir: {
 	Print(."' not found on directory.")
 	int 30h
 }
-
 
 Halt: {
 	Log(."E System halted.")
@@ -242,10 +242,9 @@ InitDrive: {
 ret }
 
 ; Include defitions of a few commonly used functions
-#include <common/console.asm>
+#include <comm/src/console.asm>
 #include <common/drive.asm>
 #include <common/fat1x.asm>
-#include <common/serial.asm>
 
 @rodata:
 times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.
