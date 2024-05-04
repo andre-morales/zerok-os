@@ -11,6 +11,7 @@ transpile <input>: Uses the Pasme transpiler to convert a <input> file into
   regular .asm
   -to <path>: Specifies a file to save the transpiled assembly
   -I  <folder>: Includes a folder in the transpiling process
+  -D  <define>: Define a preprocessor constant to 1
 
 assemble <input>: Invokes the assembler program to turn assembly into raw binary
   -to <path>: Where to save the binary code

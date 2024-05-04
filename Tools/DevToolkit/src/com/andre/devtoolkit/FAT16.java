@@ -1,8 +1,6 @@
 package com.andre.devtoolkit;
 
 import java.io.File;
-import java.nio.ByteBuffer;
-import jdk.jshell.spi.ExecutionControl;
 
 /**
  *
@@ -10,47 +8,47 @@ import jdk.jshell.spi.ExecutionControl;
  */
 public class FAT16 {
 
-	public final DiskPartition partition;
-	public int reservedSectors;
+	private final DiskPartition partition;
+	private final int reservedSectors;
 	
 	public FAT16(DiskPartition partition) {
+		if (partition.getType() != PartitionType.FAT16) throw new RuntimeException("Partition is not of FAT16 type.");
 		this.partition = partition;
 		
 		reservedSectors = getReservedSectorCount();
+	}
 		
-		System.out.println("FAT16: Reserved sectors: " + reservedSectors);
-	}
-	
-	private int getReservedSectorCount() {
-		var bytes = DiskBurner.readBytes(partition.disk, partition.startSector * 0x200 + 0x0E, 2);
-		return Numbers.byteArrayToShort(bytes, 0);
-	}
-	
-	public void burnVBR(File input, int inputOffset) {
-		long inputSize = input.length();
-		long startByte = partition.startSector * 0x200L;
+	public void burnVBR(File input, int inputOffset, long inputSize) {
+		// Limit file size
+		inputSize = capInputSize(input, inputSize);
+
+		long startByte = partition.getFirstSector() * 0x200L;
 		
 		if (inputSize - 0x3E > 0x1C2) {
 			throw new RuntimeException("Bootloader input size would overwrite data after the VBR. Data size: [" + inputSize + "]");
 		}
 		
-		// Jump instruction start
-		DiskBurner.transferFiles(input, inputOffset + 0x00, partition.disk, startByte + 0x00, 3);
-		
-		// Bootloader body
-		DiskBurner.transferFiles(input, inputOffset + 0x3E, partition.disk, startByte + 0x3E, inputSize - 0x3E);
+		// Burn jump instruction start and the rest of the file body
+		var disk = partition.getDisk();
+		Burner.transfer(input, inputOffset + 0x00, disk, startByte + 0x00, 3);
+		Burner.transfer(input, inputOffset + 0x3E, disk, startByte + 0x3E, inputSize - 0x3E);
 	}	
 	
-	public void burnReservedSectors(File input, int inputOffset) {
-		long inputSize = input.length();
-		long startByte = (partition.startSector + 1) * 0x200L;
-		
+	public void burnReservedSectors(File input, int inputOffset, long inputSize) {
+		// Limit file size
+		inputSize = capInputSize(input, inputSize);
+			
+		// Get position of the first byte of the sector after the VBR
+		long diskOffset = (partition.getFirstSector() + 1) * 0x200L;
 		int inputSectors = (int)(inputSize / 512 + 1);
 		
-		// Reserved sector count is inferior to the required
+		// Reserved sector count is inferior to the required amount
 		if (reservedSectors - 1 < inputSectors) {
 			expandReservedSectors(inputSectors);
 		}
+		
+		// File body
+		Burner.transfer(input, inputOffset, partition.getDisk(), diskOffset, inputSize);
 	}
 	
 	private void expandReservedSectors(int sectors) {
@@ -65,5 +63,15 @@ public class FAT16 {
 		while (sector < partition.startSector + partition.sizeInSectors) {
 			
 		}*/
+	}
+	
+	private int getReservedSectorCount() {
+		var bytes = Burner.readBytes(partition.getDisk(), partition.getFirstSector() * 0x200 + 0x0E, 2);
+		return Numbers.byteArrayToShort(bytes, 0);
+	}
+	
+	private static long capInputSize(File input, long size) {
+		if (size < 0) return input.length();
+		return Math.min(input.length(), size);
 	}
 }

@@ -16,7 +16,7 @@
 
 [BITS 16]
 [CPU 8086]
-; [ORG 0x6000]
+[ORG 0x6000]
 
 ; How many sectors this stage takes up
 %define SECTORS 6
@@ -27,7 +27,6 @@
 #include "version.h"
 #include <common/console.h>
 #include <common/serial.h>
-; SECTION .text vstart=0x6000
 
 SECTION .text
 ; Stores in the file our signature and sector count which

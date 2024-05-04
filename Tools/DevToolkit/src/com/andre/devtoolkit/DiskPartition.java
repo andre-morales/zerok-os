@@ -7,19 +7,38 @@ import java.io.File;
  * @author Andre
  */
 public class DiskPartition {
-	public File disk;
-	public int id;
-	public int startSector;
-	public int sizeInSectors;
-	public byte type;
+	private final File disk;
+	private final int id;
+	private final PartitionType type;
+	private final int typeId;
+	private int firstSector;
+	private int sizeInSectors;
 	
-	public DiskPartition() {}
+	DiskPartition(int id, File disk, byte[] entry, int offset) {
+		this.id = id;
+		this.disk = disk;
+		
+		this.typeId = entry[offset + 0x04] & 0xFF;
+		type = PartitionType.fromByteId(typeId);
+		if (this.typeId == 0) return;
+		
+		int sectors = Numbers.byteArrayToInt(entry, offset + 0x0C);
+		this.sizeInSectors = sectors;
+		
+		int start = Numbers.byteArrayToInt(entry, offset + 0x08);
+		this.firstSector = start;
+	}
 
-	@Override
-	public String toString() {
-		var typeStr = getTypeDescription();
-		var sizeStr = getSizeDescription();
-		return String.format("[%d] '%s' : %s : 0x%x", id, typeStr, sizeStr, startSector);
+	public File getDisk() {
+		return disk;
+	}
+	
+	public int getFirstSector() {
+		return firstSector;
+	}
+	
+	public PartitionType getType() {
+		return type;
 	}
 	
 	private String getSizeDescription() {
@@ -38,10 +57,13 @@ public class DiskPartition {
 	}
 	
 	private String getTypeDescription() {
-		return switch (type & 0xFF) {
-			case 0x00 -> "Empty";
-			case 0x0E -> "FAT 16";
-			default -> "Unknown";
-		};
+		return type.NAME;
+	}
+	
+	@Override
+	public String toString() {
+		var typeStr = getTypeDescription();
+		var sizeStr = getSizeDescription();
+		return String.format("[%d] 0x%02X='%s' : %s : 0x%02X", id, type, typeStr, sizeStr, firstSector);
 	}
 }

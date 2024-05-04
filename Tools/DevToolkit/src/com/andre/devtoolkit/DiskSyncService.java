@@ -22,9 +22,9 @@ public class DiskSyncService {
 	Path srcPath;
 	Path diskPath;
 	
-	public DiskSyncService(String diskFile, String srcPath, String diskPath) {
+	public DiskSyncService(File diskFile, String srcPath, String diskPath) {
 		try {
-			this.diskFilePath = new File(diskFile).getCanonicalPath();
+			this.diskFilePath = diskFile.getCanonicalPath();
 			this.srcPath = Path.of(srcPath);
 			this.diskPath = Path.of(diskPath);
 		} catch (IOException ex) {

@@ -11,7 +11,7 @@ import java.nio.file.StandardOpenOption;
  *
  * @author Andre
  */
-public class DiskBurner {
+public class Burner {
 	static byte[] readBytes(File input, long srcOffset, int length) {
 		try {
 			var inputSize = input.length();
@@ -43,7 +43,7 @@ public class DiskBurner {
 		}
 	}
 	
-	static long transferFiles(File input, long srcOffset, File output, long dstOffset, long length) {
+	static long transfer(File input, long srcOffset, File output, long dstOffset, long length) {
 		try {
 			if (length <= 0) return 0;
 			
@@ -58,7 +58,7 @@ public class DiskBurner {
 			long len = Math.min(inputSize - srcOffset, length);	
 			
 			// Burn
-			long written = DiskBurner.transferChannels(inputStream, srcOffset, outputStream, dstOffset, len);
+			long written = Burner.transfer(inputStream, srcOffset, outputStream, dstOffset, len);
 			
 			// Release resources
 			outputStream.close();
@@ -70,7 +70,7 @@ public class DiskBurner {
 		}
 	}
 	
-	static long transferChannels(SeekableByteChannel input, long srcOffset, SeekableByteChannel output, long dstOffset, long bytes) {
+	static long transfer(SeekableByteChannel input, long srcOffset, SeekableByteChannel output, long dstOffset, long bytes) {
 		try {
 			// Set reading / writing points
 			input.position(srcOffset);

@@ -28,8 +28,8 @@ boot_lba: Bootstrap/boot.asm
 	-mkdir build\bstrap
 	-mkdir build\bin\bstrap
 	${PASME} transpile Bootstrap/boot.asm -D LBA_AVAILABLE -to build/bstrap/boot.nasm ${PT_FLAGS}
-	${PASME} assemble build/bstrap/boot.nasm -to build/bin/bstrap/boot.img
-	REM ${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
+	${YASM} build/bstrap/boot.nasm -f bin -o build/bin/bstrap/boot.img 
+	${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
 
 # -- Boot [CHS] --
 boot_chs: Bootstrap/boot.asm 

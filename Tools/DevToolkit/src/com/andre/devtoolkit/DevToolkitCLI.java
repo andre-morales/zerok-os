@@ -1,9 +1,6 @@
 package com.andre.devtoolkit;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Scanner;
 
 /**
@@ -16,7 +13,7 @@ import java.util.Scanner;
  * @version 1.1.0
  */
 public class DevToolkitCLI {
-	public static final String VERSION_STR = "0.1.1";
+	public static final String VERSION_STR = "0.1.2";
 	/**
 	 * Runs DevToolkit with CLI arguments
 	 * 
@@ -43,7 +40,8 @@ public class DevToolkitCLI {
 		switch(order) {
 		case "help" -> helpOrder(orderLine);
 		case "burn" -> burnOrder(orderLine);
-		case "burnvbr" -> burnVBROrder(orderLine);
+		case "burn-vbr" -> burnVBROrder(orderLine);
+		case "burn-reserved-sectors" -> burnReservedSectorsOrder(orderLine);
 		case "mount" -> mountOrder(orderLine);
 		case "unmount" -> unmountOrder(orderLine);
 		case "syncdisk" -> syncDiskOrder(orderLine);
@@ -110,7 +108,7 @@ public class DevToolkitCLI {
 		// Open input file
 		var inputFile = new File(input);
 
-		var written = DiskBurner.transferFiles(inputFile, inputOffset, diskPath, outputOffset, fileLength);
+		var written = Burner.transfer(inputFile, inputOffset, diskPath, outputOffset, fileLength);
 
 		System.out.println("Written " + written + " bytes.");
 	}
@@ -120,7 +118,8 @@ public class DevToolkitCLI {
 		String output = null;
 		int inputOffset = 0;
 		int partitionNumber = -1;
-	
+		long fileLength = -1;
+		
 		// Interpret order arguments
 		for (int i = 1; i < orderLine.length; i++) {
 			var arg = orderLine[i];
@@ -129,6 +128,7 @@ public class DevToolkitCLI {
 				switch (arg) {
 					case "-srcOff" -> inputOffset = parseNumberExpression(orderLine[++i]);
 					case "-partition" -> partitionNumber = parseNumberExpression(orderLine[++i]);
+					case "-length" -> fileLength = parseNumberExpression(orderLine[++i]);
 					case "-to" -> output = orderLine[++i];
 					default -> throw new CLIException("Unknown switch: " + arg);
 				}
@@ -145,30 +145,27 @@ public class DevToolkitCLI {
 		if (output == null) throw new CLIException("No output disk was specified! Use the -to switch do so.");
 		if (partitionNumber == -1) throw new CLIException("No partition specified. Use -partition to specify one.");
 		
-		System.out.print("Burning '" + input + "'[0x" + Integer.toHexString(inputOffset).toUpperCase());
-		System.out.print("] to '" + output + "' Partition [" + partitionNumber + "]");
-
-		// Open output disk file
-		var diskPath = new File(output);
-
-		// Open input file
-		var inputFile = new File(input);
-		
-		var partitions = DiskPartitions.listPartitions(diskPath);
-		var partition = partitions.get(partitionNumber);
-		
+		// Open disk (output file) and obtain the partition indexed
+		var disk = new Disk(new File(output));		
+		var partition = disk.listPartitions().get(partitionNumber);
 		var fat16 = new FAT16(partition);
-		fat16.burnVBR(inputFile, inputOffset);
+		
+		long firstByte = (partition.getFirstSector()) * 0x200L;
+		System.out.printf("Burning '%s'[0x%X] to '%s'[0x%X -- VBR PART %d]\n", input, inputOffset, output, firstByte, partitionNumber);
+
+		var inputFile = new File(input);
+		fat16.burnVBR(inputFile, inputOffset, fileLength);
 		
 		System.out.println("Finished.");
 	}
 	
-	void burnReservedSectors(String[] orderLine) {
+	void burnReservedSectorsOrder(String[] orderLine) {
 		String input = null;
 		String output = null;
 		int inputOffset = 0;
 		int partitionNumber = -1;
-	
+		long fileLength = -1;
+		
 		// Interpret order arguments
 		for (int i = 1; i < orderLine.length; i++) {
 			var arg = orderLine[i];
@@ -177,6 +174,7 @@ public class DevToolkitCLI {
 				switch (arg) {
 					case "-srcOff" -> inputOffset = parseNumberExpression(orderLine[++i]);
 					case "-partition" -> partitionNumber = parseNumberExpression(orderLine[++i]);
+					case "-length" -> fileLength = parseNumberExpression(orderLine[++i]);
 					case "-to" -> output = orderLine[++i];
 					default -> throw new CLIException("Unknown switch: " + arg);
 				}
@@ -193,20 +191,16 @@ public class DevToolkitCLI {
 		if (output == null) throw new CLIException("No output disk was specified! Use the -to switch do so.");
 		if (partitionNumber == -1) throw new CLIException("No partition specified. Use -partition to specify one.");
 		
-		System.out.print("Burning '" + input + "'[0x" + Integer.toHexString(inputOffset).toUpperCase());
-		System.out.print("] to '" + output + "' Partition [" + partitionNumber + "]");
-
-		// Open output disk file
-		var diskPath = new File(output);
-
-		// Open input file
-		var inputFile = new File(input);
-		
-		var partitions = DiskPartitions.listPartitions(diskPath);
-		var partition = partitions.get(partitionNumber);
-		
+		// Open disk (output file) and obtain the partition indexed
+		var disk = new Disk(new File(output));		
+		var partition = disk.listPartitions().get(partitionNumber);
 		var fat16 = new FAT16(partition);
-		fat16.burnReservedSectors(inputFile, inputOffset);
+		
+		long firstByte = (partition.getFirstSector() + 1) * 0x200L;
+		System.out.printf("Burning '%s'[0x%X] to '%s'[0x%X -- PART %d]\n", input, inputOffset, output, firstByte, partitionNumber);
+
+		var inputFile = new File(input);
+		fat16.burnReservedSectors(inputFile, inputOffset, fileLength);
 		
 		System.out.println("Finished.");
 	}
@@ -236,22 +230,7 @@ public class DevToolkitCLI {
 		
 		if (diskPathArg == null) throw new CLIException("No disk was specified!");
 		
-		try {
-			var absDiskPath = new File(diskPathArg).getCanonicalPath();
-			
-			var script = Files.createTempFile(null, ".dps");
-			var writer = new FileWriter(script.toFile());
-			
-			writer.write("select vdisk file=\"" + absDiskPath + "\"\n");
-			writer.write("attach vdisk");
-			
-			writer.close();
-			
-			int returnCode = Executor.execSilently("diskpart", "/s", script.toString());
-			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
+		new Disk(new File(diskPathArg)).mount();
 	}
 	
 	/**
@@ -279,21 +258,7 @@ public class DevToolkitCLI {
 		
 		if (diskPathArg == null) throw new CLIException("No disk was specified!");
 		
-		try {
-			var absDiskPath = new File(diskPathArg).getCanonicalPath();
-			
-			var script = Files.createTempFile(null, ".dps");
-			var scriptFile = script.toFile();
-			try (var writer = new FileWriter(scriptFile)) {
-				writer.write("select vdisk file=\"" + absDiskPath + "\"\n");
-				writer.write("detach vdisk");
-			}
-			
-			int returnCode = Executor.execSilently("diskpart", "/s", script.toString());
-			if (returnCode != 0) throw new CLIException("Diskpart failed with code " + returnCode);
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
+		new Disk(new File(diskPathArg)).unmount();
 	}
 	
 	/**
@@ -327,7 +292,8 @@ public class DevToolkitCLI {
 		if (srcPath == null) throw new CLIException("No folder to sync was specified! Use the -with switch to do so.");
 		if (diskPath == null) throw new CLIException("No disk destination path was specified! Use the -at switch to do so.");
 		
-		var service = new DiskSyncService(diskFile, srcPath, diskPath);
+		var disk = new Disk(new File(diskFile));
+		var service = disk.createSyncService(srcPath, diskPath);
 		service.run();
 	}	
 	
@@ -353,7 +319,7 @@ public class DevToolkitCLI {
 		
 		if (diskPathArg == null) throw new CLIException("No disk was specified!");
 		
-		var partitions = DiskPartitions.listPartitions(new File(diskPathArg));
+		var partitions = new Disk(new File(diskPathArg)).listPartitions();
 		for (var p : partitions) {
 			System.out.println(p);
 		}

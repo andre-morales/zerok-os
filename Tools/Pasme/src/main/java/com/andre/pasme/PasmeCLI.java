@@ -314,7 +314,7 @@ public class PasmeCLI {
 	 * @return The return code of the program.
 	 */
 	static int execSilently(String... cmd) {
-		try {
+                try {
 			Process proc;
 			
 			// Build the process and start it. If the program command couldn't be found, throw a dedicated exception.
