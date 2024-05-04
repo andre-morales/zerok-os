@@ -1,4 +1,4 @@
-#include "strings.h"
+#include <strings.h>
 
 %define PORT 0x3F8 
 
@@ -13,16 +13,16 @@
 	in al, dx
 %endmacro
 
-GLOBAL Serial.init
-GLOBAL Serial.print
-GLOBAL Serial.printHexNum
-GLOBAL Serial.putch
+GLOBAL Serial.Init
+GLOBAL Serial.Print
+GLOBAL Serial.PrintHexNum
+GLOBAL Serial.Putch
 
 var bool Serial.initialized
 
 [SECTION .text]
 [BITS 16]
-Serial.init: {
+Serial.Init: {
 	push ax | push dx
 
 	mov byte [Serial.initialized], 0x00
@@ -52,7 +52,7 @@ Serial.init: {
 	ret
 }
 
-Serial.putch: {
+Serial.Putch: {
 	cmp byte [Serial.initialized], 0x01
 	jne .end
 	
@@ -78,14 +78,14 @@ Serial.putch: {
 	ret
 }
 
-Serial.print: {
+Serial.Print: {
 	push ax | push cx | push dx
 	
 .putc:
 	lodsb
 	test al, al | jz .end
 	
-	call Serial.putch
+	call Serial.Putch
 	jmp .putc
 	
 .end:
@@ -93,7 +93,7 @@ Serial.print: {
 	ret
 }
 
-Serial.printHexNum {
+Serial.PrintHexNum {
 	CLSTACK
 	farg word number
 	lvar char[8] str
@@ -109,10 +109,10 @@ Serial.printHexNum {
 		
 	mov ax, [$number]
 	lea di, [$str]
-	call Strings.hexNumToStr
+	call Strings.HexToStr
 	
 	mov si, di
-	call Serial.print
+	call Serial.Print
 	
 	pop di | pop si
 	pop dx | pop ax

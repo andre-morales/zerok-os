@@ -46,7 +46,7 @@ boot_chs: src/boot.asm
 head: src/head.asm
 	${PASME} transpile src/head.asm -to build/int/head.nasm ${PT_FLAGS}
 	${YASM} build/int/head.nasm -f elf -o build/int/head.o
-	${LD} build/int/head.o ../../Libs/comm/build/strings.o ../../Libs/comm/build/serial.o -T src/head.ld -o build/bin/head.img
+	${LD} build/int/head.o ../../Libs/comm/build/strings.o ../../Libs/comm/build/serial.o ../../Libs/comm/build/drive.o -T src/head.ld -o build/bin/head.img
 	${DEVTK} burn-reserved-sectors build/bin/head.img -to "${TestDisk}" -partition 0
 	
 # -- srcper --

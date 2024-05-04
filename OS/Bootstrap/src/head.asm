@@ -27,6 +27,8 @@
 #include <comm/src/strings.h>
 #include <comm/src/serial.h>
 #include <comm/src/console.h>
+#include <comm/src/drive.h>
+#include <comm/serial_macros.h>
 
 [SECTION .text]
 ; Stores in the file our signature and sector count which
@@ -59,7 +61,7 @@ start: {
 	Print(."\n-- &bZk&3Loader &4Head &cv$#VERSION#\n")
 	
 	; Initialize serial
-	call Serial.init	
+	call Serial.Init	
 	Log(."I Serial ready.\n")
 	
 	; Configure a buffer region and temporary storage to process the file system
@@ -80,9 +82,10 @@ start: {
 	call Load_LdrHeadBin
 
 	; Copy all Drive variables to the pointer stored in Stage 3.
-	mov si, Drive
+	mov si, Drive.vars_begin
 	mov di, [0x702]
-	mov cx, Drive.vars_end - Drive
+	mov cx, Drive.vars_end
+	sub cx, Drive.vars_begin
 	rep movsb 
 	
 	; Copy all FATFS variables to the pointer stored in Stage 3.
@@ -160,20 +163,20 @@ InitFileSystem: {
 	Putch(':')
 	PrintHexNum word [FATFS.beginningSct]
 	
-	Serial.Print(."\n  FAT: 0x")
-	Serial.PrintHexNum word [FATFS.fatSct + 2]
-	Serial.Print(':')
-	Serial.PrintHexNum word [FATFS.fatSct]
+	SERIAL_PRINT(."\n  FAT: 0x")
+	SERIAL_PRINT_HEX_NUM word [FATFS.fatSct + 2]
+	SERIAL_PRINT(':')
+	SERIAL_PRINT_HEX_NUM word [FATFS.fatSct]
 	
-	Serial.Print(."\n  Root Dir: 0x")
-	Serial.PrintHexNum word [FATFS.rootDirSct + 2]
-	Serial.Print(':')
-	Serial.PrintHexNum word [FATFS.rootDirSct]
+	SERIAL_PRINT(."\n  Root Dir: 0x")
+	SERIAL_PRINT_HEX_NUM word [FATFS.rootDirSct + 2]
+	SERIAL_PRINT(':')
+	SERIAL_PRINT_HEX_NUM word [FATFS.rootDirSct]
 
-	Serial.Print(."\n  Data: 0x")
-	Serial.PrintHexNum word [FATFS.dataAreaSct + 2]
-	Serial.Print(':')
-	Serial.PrintHexNum word [FATFS.dataAreaSct]
+	SERIAL_PRINT(."\n  Data: 0x")
+	SERIAL_PRINT_HEX_NUM word [FATFS.dataAreaSct + 2]
+	SERIAL_PRINT(':')
+	SERIAL_PRINT_HEX_NUM word [FATFS.dataAreaSct]
 	
 	Print(."\n  Reserved L. Sectors: ")
 	PrintDecNum [FATFS.reservedLogicalSectors] 
@@ -243,11 +246,9 @@ ret }
 
 ; Include defitions of a few commonly used functions
 #include <comm/src/console.asm>
-#include <common/drive.asm>
-#include <common/fat1x.asm>
+#include <comm/src/fat1x.asm>
 
 @rodata:
-times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.
 
 ; --------- Variable space ---------
 [SECTION .bss]

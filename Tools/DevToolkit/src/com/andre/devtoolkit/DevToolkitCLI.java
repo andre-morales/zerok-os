@@ -145,16 +145,19 @@ public class DevToolkitCLI {
 		if (output == null) throw new CLIException("No output disk was specified! Use the -to switch do so.");
 		if (partitionNumber == -1) throw new CLIException("No partition specified. Use -partition to specify one.");
 		
+		var inputFile = new File(input);
+		if (!inputFile.exists()) throw new CLIException("The input file '" + input + "' was specified!");
+		
 		// Open disk (output file) and obtain the partition indexed
 		var disk = new Disk(new File(output));		
 		var partition = disk.listPartitions().get(partitionNumber);
 		var fat16 = new FAT16(partition);
 		
 		long firstByte = (partition.getFirstSector()) * 0x200L;
+		
 		System.out.printf("Burning '%s'[0x%X] to '%s'[0x%X -- VBR PART %d]\n", input, inputOffset, output, firstByte, partitionNumber);
-
-		var inputFile = new File(input);
-		fat16.burnVBR(inputFile, inputOffset, fileLength);
+		
+		fat16.burnVBR(inputFile, inputOffset, fileLength);	
 		
 		System.out.println("Finished.");
 	}
@@ -191,6 +194,9 @@ public class DevToolkitCLI {
 		if (output == null) throw new CLIException("No output disk was specified! Use the -to switch do so.");
 		if (partitionNumber == -1) throw new CLIException("No partition specified. Use -partition to specify one.");
 		
+		var inputFile = new File(input);
+		if (!inputFile.exists()) throw new CLIException("The input file '" + input + "' was specified!");
+		
 		// Open disk (output file) and obtain the partition indexed
 		var disk = new Disk(new File(output));		
 		var partition = disk.listPartitions().get(partitionNumber);
@@ -199,7 +205,6 @@ public class DevToolkitCLI {
 		long firstByte = (partition.getFirstSector() + 1) * 0x200L;
 		System.out.printf("Burning '%s'[0x%X] to '%s'[0x%X -- PART %d]\n", input, inputOffset, output, firstByte, partitionNumber);
 
-		var inputFile = new File(input);
 		fat16.burnReservedSectors(inputFile, inputOffset, fileLength);
 		
 		System.out.println("Finished.");

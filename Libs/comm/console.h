@@ -6,8 +6,6 @@
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
 
-#include <common/io.h>
-
 %macro Putch 1
 	push ax
 	mov al, %1

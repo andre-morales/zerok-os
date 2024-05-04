@@ -1,12 +1,15 @@
-GLOBAL Strings.itoa
-GLOBAL Strings.hexNumToStr
+GLOBAL Strings.IntToStr
+GLOBAL Strings.HexToStr
 
 [SECTION .text]
 [BITS 16]
 
 ; Turns a 16-bit integer into a string.
 ; The number is in the AX register.
-Strings.itoa: {
+; [AX] = Number
+; [ES:DI] = Pointer to where a null-terminated string will be stored.
+; Preserves everything.
+Strings.IntToStr: {
 	push cx
 	push dx
 	push di
@@ -44,7 +47,8 @@ ret
 
 ; [AX] = Number
 ; [ES:DI] = Pointer to where a null-terminated string will be stored.
-Strings.hexNumToStr: {
+; Preserves everything.
+Strings.HexToStr: {
 	push ax
 	push cx
 	push di

@@ -71,6 +71,8 @@ public class FAT16 {
 	}
 	
 	private static long capInputSize(File input, long size) {
+		if (!input.exists()) throw new CLIException("Input '" + input + "' does not exist.");
+		
 		if (size < 0) return input.length();
 		return Math.min(input.length(), size);
 	}

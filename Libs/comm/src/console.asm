@@ -16,7 +16,7 @@ putch: {
 	
 	.print:
 	#ifdef CONSOLE_MIRROR_TO_SERIAL
-	call Serial.putch
+	call Serial.Putch
 	#endif
 	
 	mov ah, 0Eh
@@ -152,7 +152,7 @@ printHexNum: {
 		
 	mov ax, [$number]
 	lea di, [$str]
-	call Strings.hexNumToStr
+	call Strings.HexToStr
 	
 	mov si, di
 	call print
@@ -178,7 +178,7 @@ printDecNum: {
 	mov ds, di
 	
 	lea di, [$str]
-	call Strings.itoa
+	call Strings.IntToStr
 	
 	mov si, di
 	call print
