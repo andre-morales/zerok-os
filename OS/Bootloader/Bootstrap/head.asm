@@ -16,7 +16,6 @@
 
 [BITS 16]
 [CPU 8086]
-[ORG 0x6000]
 
 ; How many sectors this stage takes up
 %define SECTORS 6

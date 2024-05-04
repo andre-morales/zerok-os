@@ -3,10 +3,10 @@ TestDisk=../../Test Machines/vdisk.vhd
 PartitionStart=0x10000
 
 # -- Tools --
-PASME=tools\pasme
-DEVTK=tools\devtk
+PASME=tools\\pasme
+DEVTK=tools\\devtk
 YASM=yasm
-LD=tools\ld
+LD=tools\\ld
 # -- Flags --
 # Pasme Transpiler flags
 PT_FLAGS=-I ../../Libs
@@ -25,25 +25,28 @@ all: boot_lba head bstrap loader
 
 # -- Boot [LBA] --
 boot_lba: Bootstrap/boot.asm
-	-mkdir build\bstrap
-	-mkdir build\bin\bstrap
-	${PASME} transpile Bootstrap/boot.asm -D LBA_AVAILABLE -to build/bstrap/boot.nasm ${PT_FLAGS}
-	${YASM} build/bstrap/boot.nasm -f bin -o build/bin/bstrap/boot.img 
-	${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
+	-@mkdir build\\int 2> nul
+	-@mkdir build\\bin 2> nul
+	${PASME} transpile Bootstrap/boot.asm -D LBA_AVAILABLE -to build/int/boot.nasm ${PT_FLAGS}
+	${YASM} build/int/boot.nasm -f elf -o build/int/boot.o
+	${LD} build/int/boot.o -T Bootstrap/boot.ld -o build/bin/boot.bin
+	${DEVTK} burn-vbr build/bin/boot.bin -to "${TestDisk}" -partition 0
 
 # -- Boot [CHS] --
 boot_chs: Bootstrap/boot.asm 
-	-@mkdir build\bstrap
-	-@mkdir build\bin\bstrap
-	${PASME} transpile Bootstrap/boot.asm -to build/bstrap/boot.nasm ${PT_FLAGS}
-	${PASME} assemble  build/bstrap/boot.nasm -to build/bin/bstrap/boot.img
-	${DEVTK} burn build/bin/bstrap/boot.img -to "${TestDisk}" -srcOff 0x3E -dstOff ${PartitionStart}+0x3E -length 450
+	-@mkdir build\\int 2> nul
+	-@mkdir build\\bin 2> nul
+	${PASME} transpile Bootstrap/boot.asm -to build/int/boot.nasm ${PT_FLAGS}
+	${YASM} build/int/boot.nasm -f elf -o build/int/boot.o
+	${LD} build/int/boot.o -T Bootstrap/boot.ld -o build/bin/boot.img
+	${DEVTK} burn-vbr build/bin/boot.bin -to "${TestDisk}" -partition 0
 
 # -- Head --
 head: Bootstrap/head.asm
-	${PASME} transpile Bootstrap/head.asm -to build/bstrap/head.nasm ${PT_FLAGS}
-	${PASME} assemble  build/bstrap/head.nasm -to build/bin/bstrap/head.img
-	${DEVTK} burn build/bin/bstrap/head.img -to "${TestDisk}" -dstOff ${PartitionStart}+0x200 -length 3072
+	${PASME} transpile Bootstrap/head.asm -to build/int/head.nasm ${PT_FLAGS}
+	${YASM} build/int/head.nasm -f elf -o build/int/head.o
+	${LD} build/int/head.o -T Bootstrap/head.ld -o build/bin/head.img
+	${DEVTK} burn-reserved-sectors build/bin/head.img -to "${TestDisk}" -partition 0
 	
 # -- Bootstrapper --
 bstrap: Bootstrap/bootstrap.asm

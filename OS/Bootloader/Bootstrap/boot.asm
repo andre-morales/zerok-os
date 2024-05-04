@@ -8,7 +8,7 @@
 
 [BITS 16]
 [CPU 8086]
-[ORG 0x7C00]
+;[ORG 0x7C00]
 
 #include "version.h"
 #include <common/console.h>
@@ -30,7 +30,7 @@ jmp start | nop
 times (21 + 12 + 26) db 0x11
 
 ; Start of code at 0x3E
-SECTION .text
+[SECTION .text]
 start: {
 	cli
 	
@@ -432,7 +432,8 @@ times 510-($-$$) db 0x90 ; Fill the rest of the boostsector code with no-ops
 dw 0xAA55                ; Boot signature
 
 ; --------- Variable space ---------
-SECTION .bss vstart=0x7E00
+;SECTION .bss vstart=0x7E00
+[SECTION .bss]
 #ifdef LBA_AVAILABLE
 lbaDAPS:			 
 	.size:			 resb 1 ; Size (16)
