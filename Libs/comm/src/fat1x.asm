@@ -5,6 +5,33 @@
  * Creation: 02/01/2021
  * Modified: 20/05/2023 */
 
+#include <serial.h>
+#include <serial_macros.h>
+#include <drive.h>
+#include <console.h>
+#include <console_macros.h>
+
+GLOBAL FATFS.Initialize
+GLOBAL FATFS.LocateFile
+GLOBAL FATFS.ReadClusterChain
+
+GLOBAL FATFS
+GLOBAL FATFS.beginningSct
+GLOBAL FATFS.clusterBuffer
+GLOBAL FATFS.vars_end
+GLOBAL FATFS.clusterBits
+GLOBAL FATFS.label
+GLOBAL FATFS.fatSct
+GLOBAL FATFS.rootDirSct
+GLOBAL FATFS.dataAreaSct
+GLOBAL FATFS.reservedLogicalSectors
+GLOBAL FATFS.totalLogicalSectors
+GLOBAL FATFS.fats
+GLOBAL FATFS.bytesPerLogicalSector
+GLOBAL FATFS.logicalSectorsPerCluster
+GLOBAL FATFS.bytesPerCluster
+GLOBAL FATFS.logicalSectorsPerFAT
+
 var void FATFS
 	var void .BPB
 	var short .bytesPerLogicalSector
@@ -35,6 +62,9 @@ var void FATFS
 	
 	var byte[512] .clusterMapBuffer
 var void .vars_end
+
+[SECTION .text]
+[BITS 16]
 
 FATFS.Initialize: {
 	CLSTACK
@@ -506,3 +536,11 @@ FATFS._readFATSector: {
 	.end:
 	LEAVEFN
 }
+
+Halt:
+	int 30h
+
+@rodata:
+
+[SECTION .bss]
+@bss:

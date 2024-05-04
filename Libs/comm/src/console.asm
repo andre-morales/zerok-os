@@ -3,6 +3,19 @@
 ; Creation: 06/10/2020
 ; Modified: 31/01/2022
 
+#include <strings.h>
+#include <serial.h>
+
+GLOBAL print
+GLOBAL classLog
+GLOBAL WaitKey
+GLOBAL printDecNum
+GLOBAL printHexNum
+GLOBAL putch
+
+[SECTION .text]
+[BITS 16]
+
 /* Prints a single character that was put into AL */
 putch: {
 	push ax | push bx | push dx
@@ -15,9 +28,7 @@ putch: {
 	mov al, 0Ah ; Then print an actual new line
 	
 	.print:
-	#ifdef CONSOLE_MIRROR_TO_SERIAL
 	call Serial.Putch
-	#endif
 	
 	mov ah, 0Eh
 	mov bx, 00_1Ah ; BH (0) BL (1Ah)
@@ -190,3 +201,5 @@ printDecNum: {
 	
 	LEAVEFN
 }
+
+@rodata:

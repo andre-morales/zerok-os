@@ -15,6 +15,9 @@ PT_FLAGS=-I ../../Libs
 # Pasme Assembler flags
 PA_FLAGS=-w-pp-macro-redef-multi
 
+# Common lib built object folder
+COMM=../../Libs/comm/build/
+
 .PHONY: all boot_lba boot_chs head bstrap mountdisk unmountdisk clean
 
 default:
@@ -44,16 +47,16 @@ boot_chs: src/boot.asm
 
 # -- Head --
 head: src/head.asm
-	${PASME} transpile src/head.asm -to build/int/head.nasm ${PT_FLAGS}
+	${PASME} transpile src/head.asm -to build/int/head.nasm $(PT_FLAGS)
 	${YASM} build/int/head.nasm -f elf -o build/int/head.o
-	${LD} build/int/head.o ../../Libs/comm/build/strings.o ../../Libs/comm/build/serial.o ../../Libs/comm/build/drive.o -T src/head.ld -o build/bin/head.img
+	${LD} build/int/head.o $(COMM)/strings.o $(COMM)/serial.o $(COMM)/console.o $(COMM)/drive.o $(COMM)/fat1x.o -T src/head.ld -o build/bin/head.img
 	${DEVTK} burn-reserved-sectors build/bin/head.img -to "${TestDisk}" -partition 0
 	
 # -- srcper --
 bstrap: src/bootstrap.asm
-	${PASME} transpile src/bootstrap.asm -to build/int/bootstrap.nasm ${PT_FLAGS}
+	${PASME} transpile src/bootstrap.asm -to build/int/bootstrap.nasm $(PT_FLAGS)
 	${YASM} build/int/bootstrap.nasm -f elf -o build/int/bootstrap.o
-	${LD} build/int/bootstrap.o -T src/bootstrap.ld -o build/bin/bstrap.bin
+	${LD} build/int/bootstrap.o $(COMM)/strings.o $(COMM)/serial.o $(COMM)/console.o $(COMM)/drive.o $(COMM)/fat1x.o -T src/bootstrap.ld -o build/bin/bstrap.bin
 	copy "build\bin\BSTRAP.BIN" "..\..\Dropbox\ZKOS\BSTRAP.BIN"
 
 # -- Utilities --

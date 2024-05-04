@@ -107,7 +107,7 @@ public class Transpiler {
 			}
 		}
 
-		if(undumpedBssSymbols) throw new TranspilerException("Global variables were defined but no @data section defined.");
+		if(undumpedBssSymbols) throw new TranspilerException("Global variables were defined but no @bss section defined.");
 		if(undumpedRodataSymbols) throw new TranspilerException("Constant strings were defined but no @rodata section defined.");
 		
 		writeLines(outLines, outputFile);

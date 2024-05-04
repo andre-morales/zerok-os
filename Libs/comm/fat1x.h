@@ -1,0 +1,24 @@
+#ifndef FAT1X_H
+#define FAT1X_H 1
+
+EXTERN FATFS.beginningSct
+EXTERN FATFS.clusterBuffer
+EXTERN FATFS
+EXTERN FATFS.vars_end
+EXTERN FATFS.LocateFile
+EXTERN FATFS.ReadClusterChain
+EXTERN FATFS.Initialize
+EXTERN FATFS.clusterBits
+EXTERN FATFS.label
+EXTERN FATFS.fatSct
+EXTERN FATFS.rootDirSct
+EXTERN FATFS.dataAreaSct
+EXTERN FATFS.reservedLogicalSectors
+EXTERN FATFS.totalLogicalSectors
+EXTERN FATFS.fats
+EXTERN FATFS.bytesPerLogicalSector
+EXTERN FATFS.logicalSectorsPerCluster
+EXTERN FATFS.bytesPerCluster
+EXTERN FATFS.logicalSectorsPerFAT
+
+#endif

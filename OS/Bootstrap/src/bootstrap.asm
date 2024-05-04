@@ -18,10 +18,13 @@
 ; -- [3000 -  ...] Stage 4 code starts here
 ; -- [ ... - 7FF0] Stack
 
-#define CONSOLE_MIRROR_TO_SERIAL 1
 #include "version.h"
-#include <common/console.h>
-#include <common/serial.h>
+#include <comm/console.h>
+#include <comm/console_macros.h>
+#include <comm/serial.h>
+#include <comm/serial_macros.h>
+#include <comm/drive.h>
+#include <comm/fat1x.h>
 
 %define FAT16_CLUSTER_BUFFER_ADDR 0x1200
 %define STAGE4_FILE_ADDR 0x2000
@@ -87,7 +90,7 @@ times 512-($-$$) db 0x00 ; Fill everything until 0x700
 
 jmp start
 
-dw Drive ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
+dw Drive.vars_begin ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
 dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
 
 start: {
@@ -96,7 +99,7 @@ start: {
 	Print(."\n-- &bZk&3Loader &2Bootstrap &cv$#VERSION#\n")
 	
 	; Initialize serial
-	call Serial.init	
+	call Serial.Init	
 	
 	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
@@ -338,12 +341,6 @@ FileNotFoundOnDir: {
 	Print(."' not found on directory.")
 	jmp Halt
 }
-
-; Code imports
-#include <common/console.asm>
-#include <common/drive.asm>
-#include <common/fat1x.asm>
-#include <common/serial.asm>
 
 @rodata:
 

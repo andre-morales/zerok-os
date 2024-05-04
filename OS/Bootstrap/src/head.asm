@@ -24,11 +24,13 @@
 
 ; Include a few macro definition files
 #include "version.h"
-#include <comm/src/strings.h>
-#include <comm/src/serial.h>
-#include <comm/src/console.h>
-#include <comm/src/drive.h>
+#include <comm/strings.h>
+#include <comm/serial.h>
 #include <comm/serial_macros.h>
+#include <comm/console.h>
+#include <comm/console_macros.h>
+#include <comm/drive.h>
+#include <comm/fat1x.h>
 
 [SECTION .text]
 ; Stores in the file our signature and sector count which
@@ -91,7 +93,8 @@ start: {
 	; Copy all FATFS variables to the pointer stored in Stage 3.
 	mov si, FATFS
 	mov di, [0x704]
-	mov cx, FATFS.vars_end - FATFS
+	mov cx, FATFS.vars_end
+	sub cx, FATFS
 	rep movsb 
 	
 	; Check the signature
@@ -243,10 +246,6 @@ InitDrive: {
 	.End:
 	Print(."\n")
 ret }
-
-; Include defitions of a few commonly used functions
-#include <comm/src/console.asm>
-#include <comm/src/fat1x.asm>
 
 @rodata:
 
