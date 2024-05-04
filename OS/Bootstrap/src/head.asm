@@ -27,7 +27,7 @@
 #include <common/console.h>
 #include <common/serial.h>
 
-SECTION .text
+[SECTION .text]
 ; Stores in the file our signature and sector count which
 ; then are used by Stage 1 to indentify and load us.
 db 'Xt'
@@ -251,5 +251,5 @@ ret }
 times (512 * SECTORS)-($-$$) db 0x90 ; Round to 1kb.
 
 ; --------- Variable space ---------
-SECTION .bss
+[SECTION .bss]
 @bss:

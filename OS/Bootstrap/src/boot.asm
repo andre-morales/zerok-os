@@ -1,14 +1,12 @@
 /* Boot (Stage 1)
  * 
  * Author:   André Morales 
- * Version:  0.7.0
  * Creation: 07/10/2020
- * Modified: 05/05/2023
+ * Modified: 04/05/2024
  */
 
 [BITS 16]
 [CPU 8086]
-;[ORG 0x7C00]
 
 #include "version.h"
 #include <common/console.h>
@@ -24,13 +22,13 @@
 %define STAGE2_ADDR 0x6000
 
 ; 3-byte jmp instruction
+[SECTION .text]
 jmp start | nop
 
 ; Space for BPB.
 times (21 + 12 + 26) db 0x11
 
-; Start of code at 0x3E
-[SECTION .text]
+; Actual start of code at 0x3E
 start: {
 	cli
 	
@@ -432,7 +430,6 @@ times 510-($-$$) db 0x90 ; Fill the rest of the boostsector code with no-ops
 dw 0xAA55                ; Boot signature
 
 ; --------- Variable space ---------
-;SECTION .bss vstart=0x7E00
 [SECTION .bss]
 #ifdef LBA_AVAILABLE
 lbaDAPS:			 

@@ -21,7 +21,7 @@ void pciDeviceCallback(const PCI_Device* dev);
 void main() {
 	bool init = loadInitArgs();
 	setupIO();
-	printf("\n-- &bZk&3Loader &eCore32 &cv8.2\n");
+	printf("\n-- &bZk&3Loader &eCore32 &cv0.8.2\n");
 	if (!init) {
 		log(LOG_ERROR, "Invalid loader arguments.\n");
 		return;

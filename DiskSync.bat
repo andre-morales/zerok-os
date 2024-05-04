@@ -11,5 +11,5 @@ if %errorlevel% neq 0 (
 	wscript "%temp%\getadmin.vbs"
 	exit /B
 ) else (
-	tools\devtk syncdisk "../../Test Machines/vdisk.vhd" -with diskDropbox\ZKOS -at Z:\ZKOS\
+	Tools\devtk syncdisk "Test Machines/vdisk.vhd" -with Dropbox\ZKOS -at Z:\ZKOS\
 )

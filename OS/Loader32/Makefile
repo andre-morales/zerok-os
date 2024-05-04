@@ -2,9 +2,9 @@
 LOADER_OBJS=entry_stub.o core.o lib/string.o lib/stdio.o hw/model16.o hw/vga_video.o hw/acpi.o hw/pci.o hw/serial.o hw/gdt.o hw/isa.o
 
 # -- Tools --
-PASME=tools\pasme
-CC=tools\gcc
-CL=tools\ld
+PASME=.\tools\pasme
+CC=.\tools\gcc
+CL=.\tools\ld
 
 # Flags for just the GCC compiler
 CCFLAGS=-ffreestanding -nostdlib -lgcc -std=c99 -fvisibility=hidden -O3 -masm=intel -Isrc -Isrc/stdlib -include global.h
@@ -17,7 +17,7 @@ all: loader
 LDR_OBJS=$(addprefix build/obj/,$(LOADER_OBJS))
 
 loader: build/ZKLOADER.ELF
-	copy "build\ZKLOADER.ELF" "..\dropbox\ZKOS\ZKLOADER.ELF"
+	copy "build\ZKLOADER.ELF" "..\..\Dropbox\ZKOS\ZKLOADER.ELF"
 
 # Final binary
 build/ZKLOADER.ELF: linker_script.ld $(LDR_OBJS) | build
