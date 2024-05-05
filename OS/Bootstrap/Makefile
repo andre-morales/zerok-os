@@ -1,5 +1,5 @@
 # -- Config --
-TestDisk=../../Test Machines/vdisk.vhd
+TestDisk=../../Testing/vdisk.vhd
 
 # -- Tools --
 PASME=..\\..\\Tools\\pasme
@@ -32,8 +32,8 @@ boot_lba: src/boot.asm
 	-@mkdir build\\bin 2> nul
 	$(PASME) transpile src/boot.asm -D LBA_AVAILABLE -to build/int/boot.nasm $(PT_FLAGS)
 	$(YASM) build/int/boot.nasm -f elf -o build/int/boot.o $(PA_FLAGS)
-	$(LD) build/int/boot.o -T src/boot.ld -o build/bin/boot.bin
-	$(DEVTK) burn-vbr build/bin/boot.bin -to "$(TestDisk)" -partition 0
+	$(LD) build/int/boot.o -T src/boot.ld -o build/bin/boot.img
+	$(DEVTK) burn-vbr build/bin/boot.img -to "$(TestDisk)" -partition 0
 
 # -- Boot [CHS] --
 boot_chs: src/boot.asm 
@@ -42,7 +42,7 @@ boot_chs: src/boot.asm
 	$(PASME) transpile src/boot.asm -to build/int/boot.nasm $(PT_FLAGS)
 	$(YASM) build/int/boot.nasm -f elf -o build/int/boot.o $(PA_FLAGS)
 	$(LD) build/int/boot.o -T src/boot.ld -o build/bin/boot.img
-	$(DEVTK) burn-vbr build/bin/boot.bin -to "${TestDisk}" -partition 0
+	$(DEVTK) burn-vbr build/bin/boot.img -to "${TestDisk}" -partition 0
 
 # -- Head --
 head: src/head.asm

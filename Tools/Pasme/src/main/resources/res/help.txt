@@ -1,5 +1,4 @@
-This tool contains the Pasme transpiler and many utilities that aid in OS
-development.
+This tool contains the Pasme transpiler and its required utilities.
 
 [Syntax]
 pasme <orderType> [arguments/switches]
@@ -8,31 +7,13 @@ pasme <orderType> [arguments/switches]
 Here are the possible orders you can use:
 
 transpile <input>: Uses the Pasme transpiler to convert a <input> file into
-  regular .asm
+  regular YASM/NASM syntax
   -to <path>: Specifies a file to save the transpiled assembly
   -I  <folder>: Includes a folder in the transpiling process
   -D  <define>: Define a preprocessor constant to 1
 
-assemble <input>: Invokes the assembler program to turn assembly into raw binary
-  -to <path>: Where to save the binary code
-
-burn <input>: Writes <input> file into another file, with configurable offsets
-  and length. Primarily used to burn bootloaders.
-  -to <path>: Destination file
-  -srcOff <number>: Offset into the source file. By default is 0.
-    Anything behind the source offset will be ignored.
-  -dstOff <number>: Offset into the destination file. By default is 0. 
-  -length <number>: How many bytes of the input should be written. If not
-    specified, the whole input will be written into the destination.
-
 help: Prints this help text.
 
-[Examples]
+[Example]
 # Transpiles myfile.pa into assembly.asm
 pasme transpile myfile.pa -to assembly.asm
-
-# Calls the assembler program to generate boot.img binary
-pasme assemble assembly.asm -to boot.img
-
-# Overwrites the first 512 bytes of disk.vhd with boot.img
-pasme burn boot.img -to disk.vhd -srcOff 0x0 -dstOff 0x0 -length 512

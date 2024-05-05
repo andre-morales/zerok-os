@@ -20,6 +20,7 @@
  **/
 
 #include "version.h"
+#define CONSOLE_MACROS_MINIMAL 1
 #include <comm/console.h>
 #include <comm/console_macros.h>
 
@@ -39,6 +40,7 @@ times (21 + 12 + 26) db 0x11
 start: {
 	cli
 	
+	; Clear all segments and setup stack from 0x1000 and behind
 	xor ax, ax
 	mov ds, ax
 	mov es, ax	
@@ -352,9 +354,12 @@ Drive:
 	
 	.ReadSector: {
 		CLSTACK
-		lvar short CYLINDER
-		lvar byte SECTOR
-		lvar byte HEAD
+		; [ BP - 2]
+		lvar short CYLINDER 
+		; [ BP - 3]
+		lvar byte SECTOR  
+		; [ BP - 4]		
+		lvar byte HEAD      
 		ENTERFN
 		
 		push bx ; [BP - 6]

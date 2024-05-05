@@ -1,11 +1,9 @@
-/Test Machines/
-/Tools/Legacy Tools/
-/Tools/GCC/
 /Tools/DevToolkit/nbproject/private/
 /Tools/DevToolkit/build/
 /Tools/DevToolkit/dist/
 /Tools/Pasme/target/
 
+/Dropbox/
 /XtBootMgr/build/
 .vs
 

@@ -1,8 +1,8 @@
 # -- Config --
-TestDisk=../Test Machines/vdisk.vhd
+TestDisk=..\\Testing\\vdisk.vhd
 
 # -- Tools --
-PASME=call scripts/pasme
+PASME=..\\Tools\pasme
 DEVTK=..\\Tools\\devtk
 YASM=yasm
 LD=..\\Tools\\ld

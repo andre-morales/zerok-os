@@ -7,7 +7,7 @@ devtoolkit <orderType> [arguments/switches]
 Here are the possible orders you can use:
 
 burn <input>: Writes <input> file into another file, with configurable offsets
-  and length. Primarily used to burn bootloaders.
+  and length.
   -to <path>: Destination file
   -srcOff <number>: Offset into the source file. By default is 0.
     Anything behind the source offset will be ignored.
@@ -15,10 +15,28 @@ burn <input>: Writes <input> file into another file, with configurable offsets
   -length <number>: How many bytes of the input should be written. If not
     specified, the whole input will be written into the destination.
 
+burn-vbr <input>: Writes <input> file to the boot record of a chosen partition of a disk file.
+  -to <disk>: Destination disk
+  -partition <number>: Index of the partition desired. Use "devtk partitions" to view the partitions
+    in a disk file.
+  -srcOff <number>: Specify a offset into the input file. Default is 0.
+  -length <number>: Limit the burned input size to a specific length. If no length was specified,
+    the whole file will be burned.
+
+burn-reserved-sectors <input>: Writes <input> to the reserved sectors of a partition in a disk file.
+  -to <disk>: Destination disk
+  -partition <number>: Index of the partition desired. Use "devtk partitions" to view the partitions
+    in a disk file.
+  -srcOff <number>: Specify a offset into the input file. Default is 0.
+  -length <number>: Limit the burned input size to a specific length. If no length was specified,
+    the whole file will be burned.
+
 partitions <disk>: Lists the given partitions in an MBR <disk> file
 	
-syncdisk <disk>:
-  -with <path>
+syncdisk <disk>: Invokes a disk synchronization service between a <disk> file and a drop-box
+  directory in the user computer.
+  -with <path>: Specify the drop-box directory in this machine to be synced with the disk
+  -at <path>: Specify a path in the mounted disk to watch
 
 mountdisk <disk>: Mounts a virtual disk. On Windows, this command invokes the
   diskpart system utility and requires elevated privileges. 
@@ -30,4 +48,8 @@ help: Prints this help text.
 
 [Examples]
 # Overwrites the first 512 bytes of disk.vhd with boot.img
-devtoolkit burn boot.img -to disk.vhd -srcOff 0x0 -dstOff 0x0 -length 512
+devtk burn boot.img -to disk.vhd -srcOff 0x0 -dstOff 0x0 -length 512
+
+# Mounts the disk file "testdisk.vhd" to synchronize it with a directory "dropfolder". The mounted
+location of the disk target directory is "Z:\FILES"
+devtk syncdisk "testdisk.vhd" -with "dropfolder\" -at "Z:\FILES\"

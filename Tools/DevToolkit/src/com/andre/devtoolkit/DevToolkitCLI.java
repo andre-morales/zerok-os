@@ -6,14 +6,15 @@ import java.util.Scanner;
 /**
  * CLI interface of DevToolkit. It must be instantiated and have its run() method
  * called with an order.
- * <br>
- * <br> Last edit: 30/04/2023
+ * 
+ * <br> Created in: 30/04/2023
+ * <br> Last edit: 05/05/2024
  * 
  * @author André Morales
  * @version 1.1.0
  */
 public class DevToolkitCLI {
-	public static final String VERSION_STR = "0.1.2";
+	public static final String VERSION_STR = "0.1.3";
 	/**
 	 * Runs DevToolkit with CLI arguments
 	 * 
