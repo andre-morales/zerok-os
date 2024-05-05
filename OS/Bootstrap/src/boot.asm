@@ -9,7 +9,8 @@
 [CPU 8086]
 
 #include "version.h"
-#include <common/console.h>
+#include <comm/console.h>
+#include <comm/console_macros.h>
 
 ; -- [...    - 0x1000] Stack
 ; -- [0x6000 -   ... ] Where Stage 2 will be loaded.

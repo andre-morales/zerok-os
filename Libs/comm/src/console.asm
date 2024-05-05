@@ -8,10 +8,12 @@
 
 GLOBAL print
 GLOBAL classLog
+GLOBAL Getch
 GLOBAL WaitKey
 GLOBAL printDecNum
 GLOBAL printHexNum
 GLOBAL putch
+GLOBAL putnch
 
 [SECTION .text]
 [BITS 16]

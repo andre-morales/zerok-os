@@ -16,13 +16,17 @@
 ; -- [0x2000] Generic stuff buffer
 
 #include "version.h"
-#include <common/console.h>
+#include <comm/strings.h>
+#include <comm/console.h>
+#include <comm/console_macros.h>
+#include <comm/drive.h>
 
 var short cursor
 var byte partitionMapSize
 var byte[6] partitionSizeStrBuff
 var long extendedPartitionLBA
 
+[SECTION .text]
 db 'Xt' ; Two byte signature at binary beginning.
 
 /* Entry point. */
@@ -433,7 +437,7 @@ DrawMenu: {
 			mov si, partitionSizeStrBuff
 			mov es, [bp - 4] ; Set ES to DS
 			mov di, si
-			call itoa
+			call Strings.IntToStr
 			
 			mov al, bl
 			call printColor
@@ -667,10 +671,6 @@ setCursor: {
 	pop ax
 ret }
 
-/* Code includes */
-#include <common/drive.asm>
-#include <common/console.asm>
-
 PartitionTypeNamePtrIndexArr: {
 	db 0, 1, 1, 1, 1, 5, 2, 6
 	db 1, 1, 1, 3, 1, 1, 7, 1
@@ -719,7 +719,5 @@ PartitionTypeNamePtrArr: {
 
 @rodata:
 
-times 7*512-($-$$) db 0x90 ; Fill rest of stage 2 with no-ops. (For alignment purposes.)
-
-SECTION .bss
+[SECTION .bss]
 @bss:

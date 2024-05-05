@@ -6,17 +6,16 @@
 %define BEGIN_ADDR 0x7C00
 %define STAGE2_SEGMENT 0xA0
 %define STAGE2_ADDRESS 0xA00
-%define STAGE2_SIZE_IN_SECTORS 7
+%define STAGE2_SIZE_IN_SECTORS 8
 
-[ORG BEGIN_ADDR]
 [CPU 8086]
 [BITS 16]
 
 #include "version.h"
-#define CONSOLE_MINIMAL 1
-#include <common/console.h>
+#define CONSOLE_MACROS_MINIMAL 1
+#include <comm/console_macros.h>
 
-SECTION .text vstart=BEGIN_ADDR
+[SECTION .text]
 entry:	
 	; Clear segment registers and set up the stack right behind us.
 	cli ; Prevent interrupts while the stack is being setup
@@ -123,11 +122,82 @@ halt: {
 	hlt
 jmp halt }
 
-#include <common/console.asm>
+putch: {
+	push ax | push bx | push dx
+	
+	cmp al, 0Ah ; Is character newline?
+	jne .print
+	
+	mov al, 0Dh ; Print a carriage return
+	call putch
+	mov al, 0Ah ; Then print an actual new line
+	
+	.print:
+	mov ah, 0Eh
+	mov bx, 00_1Ah ; BH (0) BL (1Ah)
+	int 10h
+	
+	pop dx | pop bx | pop ax
+ret }
+
+/* Prints a string placed in SI */
+print: {
+	push ax
+	
+	.char:
+		lodsb
+		test al, al
+		jz .end
+		
+		call putch
+	jmp .char
+		
+	.end:
+	pop ax
+ret }
+
+printHexNum_short: {
+	push ax
+	push cx
+
+	mov cx, 16
+	call .printNumber
+	
+	pop cx
+	pop ax
+ret
+	
+	.printNumber:
+		push ax
+		push dx
+		
+		xor dx, dx
+		div cx            ; AX = Quotient, DX = Remainder
+		test ax, ax       ; Is quotient zero?
+		
+		jz .printDigit    ; Yes, just print the digit in the remainder.
+		call .printNumber ; No, recurse and divide the quotient by 16 again. Then print the digit in the remainder.
+		
+		.printDigit:
+		mov al, dl
+		add al, '0'
+		cmp al, '9'
+		jle .putc
+		
+		add al, 7
+		
+		.putc:
+		call putch
+	
+		pop dx
+		pop ax
+    ret
+}
 
 @rodata:
 
 %xdefine padding (440 - ($ - $$))
 times padding db 0x90 ; Fill the rest of the boostsector code with no-ops
 
+[SECTION .bss]
 @bss:

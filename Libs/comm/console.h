@@ -8,10 +8,11 @@
 
 EXTERN print
 EXTERN classLog
+EXTERN Getch
 EXTERN WaitKey
 EXTERN printDecNum
 EXTERN printHexNum
 EXTERN putch
-
+EXTERN putnch
 #endif
 
