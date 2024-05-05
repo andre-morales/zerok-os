@@ -1,18 +1,21 @@
-/* Head (Stage 2)
+/**
+ * Head (Stage 2)
  *
  * Author:   André Morales 
- * Version:  0.7.0
  * Creation: 02/01/2021
- * Modified: 05/05/2023
+ * Modified: 05/05/2024
+ *
+ * The second stage is stored in the reserved sectors of the boot partition. It is loaded by the
+ * first stage all at once.
+ *
+ *     :: MEMORY MAP ::
+ * -- [0x 500 -  ...  ] Where Stage 3 file will be loaded
+ * -- [0x 700 -  ...  ] Where Stage 3 code begins
+ * -- [0x3000 -  ...  ] FAT16 Cluster Buffer
+ * -- [0x6000 -  ...  ] Stage 2 (Us)
+ * -- [0x7C00 - 0x7DFF] Our VBR still loaded
+ * -- [0x7E00 - 0x7FFF] Stack
  */
-
-;                # Memory Map #
-; -- [0x 500 -  ...  ] Where Stage 3 file will be loaded
-; -- [0x 700 -  ...  ] Where Stage 3 code begins
-; -- [0x3000 -  ...  ] FAT16 Cluster Buffer
-; -- [0x6000 -  ...  ] Stage 2 (Us)
-; -- [0x7C00 - 0x7DFF] Our VBR still loaded
-; -- [0x7E00 - 0x7FFF] Stack
 
 [BITS 16]
 [CPU 8086]

@@ -1,29 +1,35 @@
-/* Boot (Stage 1)
- * 
+/** 
+ * Boot (Stage 1) 
+ *
  * Author:   André Morales 
  * Creation: 07/10/2020
  * Modified: 04/05/2024
- */
-
-[BITS 16]
-[CPU 8086]
+ *
+ * First stage in the booting process. This loader will be recored in the VBR of the partition
+ * the OS gets installed on.
+ * Due to size limits, this loader can only use CHS or LBA but not both.
+ *
+ * :: MEMORY MAP ::
+ * -- [...    - 0x1000] Stack
+ * -- [0x6000 -   ... ] Where Stage 2 will be loaded.
+ * -- [0x7600 -    #  ] Loaded MBR.
+ * -- [0x7800 -    #  ] Test VBR/EBR.
+ * -- [0x7A00 -    #  ] Test VBR from EBR.
+ * -- [0x7C00 -    #  ] Our loaded VBR (Stage 1).
+ * -- [0x7E00 -   ... ] Varible storage
+ **/
 
 #include "version.h"
 #include <comm/console.h>
 #include <comm/console_macros.h>
 
-; -- [...    - 0x1000] Stack
-; -- [0x6000 -   ... ] Where Stage 2 will be loaded.
-; -- [0x7600 -    #  ] Loaded MBR.
-; -- [0x7800 -    #  ] Test VBR/EBR.
-; -- [0x7A00 -    #  ] Test VBR from EBR.
-; -- [0x7C00 -    #  ] Our loaded VBR (Stage 1).
-; -- [0x7E00 -   ... ] Varible storage
-
 %define STAGE2_ADDR 0x6000
 
-; 3-byte jmp instruction
 [SECTION .text]
+[BITS 16]
+[CPU 8086]
+
+; 3-byte jmp instruction
 jmp start | nop
 
 ; Dummy space for BPB.

@@ -1,22 +1,26 @@
-/* Boostrapper (Stage 3)
+/**
+ * Boostrapper (Stage 3)
  * 
  * Author:   André Morales 
- * Version:  0.67
  * Creation: 02/01/2021
- * Modified: 25/01/2022 */
+ * Modified: 05/05/2024
+ *
+ * This bootstrapper is stored as a raw binary file in the partition. It is responsible for loading
+ * the ELF execute in the same folder and switching to 32 bit mode.
+ *
+ * :: Physical Memory Map ::
+ * -- [  0  -  500] IVT and BIOS Data Area
+ * -- [ 500 -  520] Our CPU Structures
+ * -- [	 .....	 ] 
+ * -- [ 700 -   # ] Stage 3 (us)
+ * -- [1200 -   # ] FAT16 Cluster Buffer
+ * -- [2000 -   # ] Stage 4 file will be loaded here
+ * -- [3000 -  ...] Stage 4 code starts here
+ * -- [ ... - 7FF0] Stack
+ **/
 
 [BITS 16]
 [CPU 386]
-
-; Physical Map
-; -- [  0  -  500] IVT and BIOS Data Area
-; -- [ 500 -  520] Our CPU Structures
-; -- [	 .....	 ] 
-; -- [ 700 -   # ] Stage 3 (us)
-; -- [1200 -   # ] FAT16 Cluster Buffer
-; -- [2000 -   # ] Stage 4 file will be loaded here
-; -- [3000 -  ...] Stage 4 code starts here
-; -- [ ... - 7FF0] Stack
 
 #include "version.h"
 #include <comm/console.h>
