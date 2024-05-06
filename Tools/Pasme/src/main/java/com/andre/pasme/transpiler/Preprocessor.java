@@ -94,20 +94,29 @@ public class Preprocessor {
 
 				// If its not a preprocessor statement, check if it contains a preprocessor value.
 				if (!strTr.startsWith("#")) {
+					// The line will be emitted
 					emit.add(line);
-
+					
+					// Check for starting $# and ending # marker in the statement
 					var bs = str.indexOf("$#");
 					if (bs == -1) continue;			
 
 					var es = str.indexOf("#", bs + 2);
 					if (es == -1) continue;
-
+					
+					// Obtain the preprocessor constant between $# and #
 					var key = str.substring(bs + 2, es);
 					var value = tr.definedConstants.get(key);
 					if (value == null) continue;
-
+					
+					// Replace it in the statement
 					line.content = str.replace(str.substring(bs, es+1), value);
 					continue;
+				}
+
+				if (strTr.startsWith("#error ")) {
+					var description = Str.remainingAfter(str, "#error ");
+					throw new TranspilerException("#error says: " + description);
 				}
 
 				if (strTr.startsWith("#define ")) {

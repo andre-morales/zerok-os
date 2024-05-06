@@ -188,11 +188,11 @@ FATFS.LocateFile: {
 	jmp .nextSegment
 	
 	.notFound:
-	Print(."\NNot found.")
+	CONSOLE_PRINT(."\NNot found.")
 	jmp Halt
 	
 	.badPath:
-	Print(."\NBad path.")
+	CONSOLE_PRINT(."\NBad path.")
 	jmp Halt
 	
 	.end:
@@ -296,7 +296,7 @@ FATFS.FindFileInDir: {
 	jmp .readCluster
 	
 	.notFound
-	Print(."not found")
+	CONSOLE_PRINT(."not found")
 	jmp Halt
 	
 	.found:
@@ -358,7 +358,7 @@ FATFS.ReadCluster: {
 	cmp ax, 2
 	jg .read
 		
-	Print(."\NBad cluster.")
+	CONSOLE_PRINT(."\NBad cluster.")
 	jmp Halt
 	
 	.read:

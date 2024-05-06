@@ -51,7 +51,7 @@ start: {
 	call VerifyDriveNumber
 	mov [Drive.id], dl
 	
-	Print(."$#VERSION#")
+	CONSOLE_PRINT(."$#VERSION#")
 	
 	call TryDrive
 	
@@ -420,7 +420,7 @@ Drive:
 	}
 #endif
 
-print: {
+Console.Print: {
 	push ax | push bx | push dx	
 	
 	.char:

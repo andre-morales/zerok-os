@@ -1,66 +1,55 @@
 #ifdef CONSOLE_MACROS_MINIMAL
-	%macro Print 1
+	%macro CONSOLE_PRINT 1
 		mov si, %1
-		call print
+		call Console.Print
 	%endmacro
 
-	%macro PrintHexNum 1
-		mov ax, %1
-		call printHexNum_short
-	%endmacro
-	
-	%macro Putch 1
+	%macro CONSOLE_PUTCH 1
 		push ax
 		mov al, %1
-		call putch
+		call Console.Putch
 		pop ax
+	%endmacro
+
+	%macro CONSOLE_PRINT_HEX_NUM 1
+		mov ax, %1
+		call Console.PrintHexNumShort
 	%endmacro
 #else 
-	%macro Putch 1
+	%macro CONSOLE_PRINT 1
+		push si
+		mov si, %1
+		call Console.Print
+		pop si
+	%endmacro
+	
+	%macro CONSOLE_PUTCH 1
 		push ax
 		mov al, %1
-		call putch
+		call Console.Putch
 		pop ax
 	%endmacro
 
-	%macro Print 1
-		push si
-		mov si, %1
-		call print
-		pop si
-	%endmacro
-
-	%macro PrintHexNum 1
-		push %1
-		call printHexNum
-	%endmacro
-
-	%macro Log 1
-		push si
-		mov si, %1
-		call classLog
-		pop si
-	%endmacro
-
-	%macro Putnch 2
+	%macro CONSOLE_PUTNCH 2
 		mov al, %1
 		mov cl, %2
-		call putnch
+		call Console.Putnch
 	%endmacro
 
-	%macro PrintDecNum 1
-		mov ax, %1
-		call printDecNum
-	%endmacro
-
-	%macro PrintColor 2
+	%macro CONSOLE_FLOG 1
+		push si
 		mov si, %1
-		mov al, %2
-		call printColor
+		call Console.FLog
+		pop si
 	%endmacro
 
-	%macro ClearScreen 1
+	%macro CONSOLE_PRINT_HEX_NUM 1
+		push %1
+		call Console.PrintHexNum
+	%endmacro
+	
+	%macro CONSOLE_PRINT_DEC_NUM 1
 		mov ax, %1
-		call clearScreen
+		call Console.PrintDecNum
 	%endmacro
 #endif

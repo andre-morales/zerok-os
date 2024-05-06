@@ -8,6 +8,9 @@ package com.andre.pasme;
  */
 public class Main {
 	public static void main(String[] args) {
-		new PasmeCLI().run(args);
+		boolean success = new PasmeCLI().run(args);
+		if (!success) {
+			System.exit(-1);
+		}
 	}
 }

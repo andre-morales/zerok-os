@@ -16,16 +16,9 @@
  * -- [0x7C00 - 0x7DFF] Our VBR still loaded
  * -- [0x7E00 - 0x7FFF] Stack
  */
-
-[BITS 16]
-[CPU 8086]
-
-; How many sectors this stage takes up
-%define SECTORS 6
-#define FATX_DEBUG 1
+ 
 #define CONSOLE_MIRROR_TO_SERIAL 1
-
-; Include a few macro definition files
+#define FATX_DEBUG 1
 #include "version.h"
 #include <comm/strings.h>
 #include <comm/serial.h>
@@ -35,7 +28,14 @@
 #include <comm/drive.h>
 #include <comm/fat1x.h>
 
+; How many sectors this stage takes up
+%define SECTORS 6
+%define LOG CONSOLE_FLOG
+
 [SECTION .text]
+[BITS 16]
+[CPU 8086]
+
 ; Stores in the file our signature and sector count which
 ; then are used by Stage 1 to indentify and load us.
 db 'Xt'
@@ -63,11 +63,11 @@ start: {
 	mov [Drive.id], dl
 	
 	; Print header
-	Print(."\n-- &bZk&3Loader &4Head &cv$#VERSION#\n")
+	CONSOLE_PRINT(."\n-- &bZk&3Loader &4Head &cv$#VERSION#\n")
 	
 	; Initialize serial
 	call Serial.Init	
-	Log(."I Serial ready.\n")
+	LOG(."I Serial ready.\n")
 	
 	; Configure a buffer region and temporary storage to process the file system
 	mov word [Drive.bufferPtr], 0x0500
@@ -82,8 +82,8 @@ start: {
 	;3 Wr
 	;4 ER
 	
-	Log(."I Press any key to load BSTRAP.BIN.\n")
-	call WaitKey
+	LOG(."I Press any key to load BSTRAP.BIN.\n")
+	call Console.WaitKey
 	call Load_LdrHeadBin
 
 	; Copy all Drive variables to the pointer stored in Stage 3.
@@ -102,12 +102,12 @@ start: {
 	
 	; Check the signature
 	cmp word [0x500], 'Zk' | je .jump
-	Log(."E Invalid signature.\n")
+	LOG(."E Invalid signature.\n")
 	int 0x30
 
 ; Jump to Stage 3.
 .jump:
-	Log(.". Jumping...\n")
+	LOG(.". Jumping...\n")
 	jmp 0x700
 }
 
@@ -116,34 +116,34 @@ Load_LdrHeadBin: {
 	mov si, ."ZKOS       /BSTRAP  BIN"
 	push si
 	call FATFS.LocateFile
-	Log(."K Found.\n")
+	LOG(."K Found.\n")
 	
 	mov word [Drive.bufferPtr], 0x500
 	
 	push ax
 	call FATFS.ReadClusterChain
 	
-	Log(."K Loaded.\n")
+	LOG(."K Loaded.\n")
 ret }
 
 FileNotFoundOnDir: {
 	push si
-	Print(."\nFile '")
+	CONSOLE_PRINT(."\nFile '")
 	;mov si, [FATFS.filePathPtr]
 	pop si
-	call print
+	call Console.Print
 	
-	Print(."' not found on directory.")
+	CONSOLE_PRINT(."' not found on directory.")
 	int 30h
 }
 
 Halt: {
-	Log(."E System halted.")
+	LOG(."E System halted.")
 	cli | hlt
 }
 
 InitFileSystem: {
-	Log(."I Partition config:")
+	LOG(."I Partition config:")
 	
 	push ds 
 	
@@ -155,19 +155,19 @@ InitFileSystem: {
 	
 	pop ds	
 	
-	Print(."\n  FAT")
+	CONSOLE_PRINT(."\n  FAT")
 	
 	xor ah, ah
 	mov al, [FATFS.clusterBits]
-	call printDecNum
+	call Console.PrintDecNum
 	
-	Print(.": ")
-	Print(FATFS.label)
+	CONSOLE_PRINT(.": ")
+	CONSOLE_PRINT(FATFS.label)
 	
-	Print(."\n  Start: 0x")
-	PrintHexNum word [FATFS.beginningSct + 2]
-	Putch(':')
-	PrintHexNum word [FATFS.beginningSct]
+	CONSOLE_PRINT(."\n  Start: 0x")
+	CONSOLE_PRINT_HEX_NUM word [FATFS.beginningSct + 2]
+	CONSOLE_PUTCH(':')
+	CONSOLE_PRINT_HEX_NUM word [FATFS.beginningSct]
 	
 	SERIAL_PRINT(."\n  FAT: 0x")
 	SERIAL_PRINT_HEX_NUM word [FATFS.fatSct + 2]
@@ -184,24 +184,24 @@ InitFileSystem: {
 	SERIAL_PRINT(':')
 	SERIAL_PRINT_HEX_NUM word [FATFS.dataAreaSct]
 	
-	Print(."\n  Reserved L. Sectors: ")
-	PrintDecNum [FATFS.reservedLogicalSectors] 
+	CONSOLE_PRINT(."\n  Reserved L. Sectors: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.reservedLogicalSectors] 
 	
-	Print(."\n  Total L. Sectors: ")
-	PrintDecNum [FATFS.totalLogicalSectors] 
+	CONSOLE_PRINT(."\n  Total L. Sectors: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.totalLogicalSectors] 
 	
-	Print(."\n  FATs: ")
-	PrintDecNum [FATFS.fats]
+	CONSOLE_PRINT(."\n  FATs: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.fats]
 	
-	Print(."\n  Bytes per L. Sector: ")
-	PrintDecNum [FATFS.bytesPerLogicalSector] 
-	Print(."\n  L. Sectors per Cluster: ")
-	PrintDecNum [FATFS.logicalSectorsPerCluster] 
-	Print(."\n  Bytes per Cluster: ")
-	PrintDecNum [FATFS.bytesPerCluster] 
-	Print(."\n  L. Sectors per FAT: ")
-	PrintDecNum [FATFS.logicalSectorsPerFAT] 
-	Print(."\n")
+	CONSOLE_PRINT(."\n  Bytes per L. Sector: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.bytesPerLogicalSector] 
+	CONSOLE_PRINT(."\n  L. Sectors per Cluster: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.logicalSectorsPerCluster] 
+	CONSOLE_PRINT(."\n  Bytes per Cluster: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.bytesPerCluster] 
+	CONSOLE_PRINT(."\n  L. Sectors per FAT: ")
+	CONSOLE_PRINT_DEC_NUM [FATFS.logicalSectorsPerFAT] 
+	CONSOLE_PRINT(."\n")
 ret }
 
 InitDrive: {	
@@ -209,45 +209,45 @@ InitDrive: {
 	call Drive.CHS.GetProperties
 	call Drive.LBA.GetProperties
 
-	Log(."I Drive [")
+	LOG(."I Drive [")
 	xor ah, ah
 	mov al, [Drive.id]
-	PrintHexNum(ax)
-	Print(."] geometry:")
+	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT(."] geometry:")
 	
-	Print(."\n CHS (AH = 02h)")
-	Print(."\n  Bytes per Sector: ")
-	PrintDecNum [Drive.CHS.bytesPerSector]
+	CONSOLE_PRINT(."\n CHS (AH = 02h)")
+	CONSOLE_PRINT(."\n  Bytes per Sector: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.bytesPerSector]
 	
-	Print(."\n  Sectors per Track: ")
+	CONSOLE_PRINT(."\n  Sectors per Track: ")
 	xor ah, ah
 	mov al, [Drive.CHS.sectorsPerTrack]
-	call printDecNum
+	call Console.PrintDecNum
 
-	Print(."\n  Heads Per Cylinder: ")
-	PrintDecNum [Drive.CHS.headsPerCylinder]
+	CONSOLE_PRINT(."\n  Heads Per Cylinder: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.headsPerCylinder]
 	
-	Print(."\n  Cylinders: ")
-	PrintDecNum [Drive.CHS.cylinders]
+	CONSOLE_PRINT(."\n  Cylinders: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.cylinders]
 	
-	Print(."\n LBA (AH = 48h)")
+	CONSOLE_PRINT(."\n LBA (AH = 48h)")
 	
 	mov al, [Drive.LBA.available]
 	test al, al | jz .printLBAProps
 	cmp al, 1   | je .noDriveLBA
-	Print(."\n  The BIOS doesn't support LBA.")
+	CONSOLE_PRINT(."\n  The BIOS doesn't support LBA.")
 	jmp .End
 	
 	.noDriveLBA:
-	Print(."\n  The drive doesn't support LBA.")
+	CONSOLE_PRINT(."\n  The drive doesn't support LBA.")
 	jmp .End
 	
 	.printLBAProps:
-	Print(."\n  Bytes per Sector: ")
-	PrintDecNum [Drive.LBA.bytesPerSector]
+	CONSOLE_PRINT(."\n  Bytes per Sector: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.LBA.bytesPerSector]
 		
 	.End:
-	Print(."\n")
+	CONSOLE_PRINT(."\n")
 ret }
 
 @rodata:

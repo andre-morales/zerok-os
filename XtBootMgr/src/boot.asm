@@ -1,21 +1,22 @@
-; Author:   André Morales 
-; Version:  1.2
-; Creation: 06/10/2020
-; Modified: 22/05/2023
+/**
+ * Author:   André Morales 
+ * Version:  1.2
+ * Creation: 06/10/2020
+ * Modified: 05/05/2024
+ */
+
+#include "version.h"
+#define CONSOLE_MACROS_MINIMAL 1
+#include <comm/console_macros.h>
 
 %define BEGIN_ADDR 0x7C00
 %define STAGE2_SEGMENT 0xA0
 %define STAGE2_ADDRESS 0xA00
 %define STAGE2_SIZE_IN_SECTORS 8
 
+[SECTION .text]
 [CPU 8086]
 [BITS 16]
-
-#include "version.h"
-#define CONSOLE_MACROS_MINIMAL 1
-#include <comm/console_macros.h>
-
-[SECTION .text]
 entry:	
 	; Clear segment registers and set up the stack right behind us.
 	cli ; Prevent interrupts while the stack is being setup
@@ -42,18 +43,18 @@ entry:
 /** In our Start procedure, it is safe to refer to our own strings, functions, variables, etc. */
 start:
 	; Print welcome message followed by boot info
-	Print(."@XtBootMgr v$#VERSION# \NBooted at [")	
+	CONSOLE_PRINT(."@XtBootMgr v$#VERSION# \NBooted at [")	
 	
 	; Print boot CS:IP
 	pop ax
-	call printHexNum_short
-	Putch(':')
-	PrintHexNum(bx) 
+	call Console.PrintHexNumShort
+	CONSOLE_PUTCH(':')
+	CONSOLE_PRINT_HEX_NUM(bx) 
 	
 	; Print boot drive ID
-	Print(."] | Drive 0x")
+	CONSOLE_PRINT(."] | Drive 0x")
 	xor dh, dh
-	PrintHexNum(dx)
+	CONSOLE_PRINT_HEX_NUM(dx)
 
 	; DL is still preserved
 	call TryBootDrive
@@ -63,13 +64,13 @@ start:
 	mov dl, 0x80
 	call TryBootDrive
 	
-	Print(."\nStage 2 not found. Halted.")
+	CONSOLE_PRINT(."\nStage 2 not found. Halted.")
 	jmp halt
 
 ; [DL = Drive]
 TryBootDrive: {
-	Print(."\n\nLooking in drive 0x")
-	PrintHexNum(dx)
+	CONSOLE_PRINT(."\n\nLooking in drive 0x")
+	CONSOLE_PRINT_HEX_NUM(dx)
 	
 	; Reset drive system
 	xor ah, ah
@@ -99,16 +100,16 @@ TryBootDrive: {
 		
 	; Signature is good!
 	; Jump to stage 2 after the 2-byte signature [00A0h:0002h]
-	Print(."\nReady.")
+	CONSOLE_PRINT(."\nReady.")
 	jmp STAGE2_SEGMENT:0002h
 	
 	mbrMismatch:
-	Print(."\nMBR mismatch.")
+	CONSOLE_PRINT(."\nMBR mismatch.")
 	ret
 	
 	signatureBad:
-	Print(."\nBad signature: ")
-	PrintHexNum(ax)
+	CONSOLE_PRINT(."\nBad signature: ")
+	CONSOLE_PRINT_HEX_NUM(ax)
 ret	}
 
 ; [AL = Sector amount ; CL = Sector index + 1]
@@ -122,14 +123,14 @@ halt: {
 	hlt
 jmp halt }
 
-putch: {
+Console.Putch: {
 	push ax | push bx | push dx
 	
 	cmp al, 0Ah ; Is character newline?
 	jne .print
 	
 	mov al, 0Dh ; Print a carriage return
-	call putch
+	call Console.Putch
 	mov al, 0Ah ; Then print an actual new line
 	
 	.print:
@@ -141,7 +142,7 @@ putch: {
 ret }
 
 /* Prints a string placed in SI */
-print: {
+Console.Print: {
 	push ax
 	
 	.char:
@@ -149,14 +150,14 @@ print: {
 		test al, al
 		jz .end
 		
-		call putch
+		call Console.Putch
 	jmp .char
 		
 	.end:
 	pop ax
 ret }
 
-printHexNum_short: {
+Console.PrintHexNumShort: {
 	push ax
 	push cx
 
@@ -187,7 +188,7 @@ ret
 		add al, 7
 		
 		.putc:
-		call putch
+		call Console.Putch
 	
 		pop dx
 		pop ax

@@ -18,10 +18,6 @@
  * -- [3000 -  ...] Stage 4 code starts here
  * -- [ ... - 7FF0] Stack
  **/
-
-[BITS 16]
-[CPU 386]
-
 #include "version.h"
 #include <comm/console.h>
 #include <comm/console_macros.h>
@@ -29,6 +25,8 @@
 #include <comm/serial_macros.h>
 #include <comm/drive.h>
 #include <comm/fat1x.h>
+
+%define LOG CONSOLE_FLOG
 
 %define FAT16_CLUSTER_BUFFER_ADDR 0x1200
 %define STAGE4_FILE_ADDR 0x2000
@@ -58,8 +56,9 @@ var void LoaderStruct
 	var int pci.entry
 var void LoaderStruct.end
  
-;;;; SECTION stack vstart=0x500 progbits
 [SECTION .text]
+[BITS 16]
+[CPU 386]
 dw 'Zk'
 
 ; GDT Descriptor
@@ -100,7 +99,7 @@ dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 w
 start: {
 	mov sp, 0x7FF0
 
-	Print(."\n-- &bZk&3Loader &2Bootstrap &cv$#VERSION#\n")
+	CONSOLE_PRINT(."\n-- &bZk&3Loader &2Bootstrap &cv$#VERSION#\n")
 	
 	; Initialize serial
 	call Serial.Init	
@@ -108,20 +107,20 @@ start: {
 	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
 	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
 
-	Log(."I Loading ZKLOADER.ELF\n")
+	LOG(."I Loading ZKLOADER.ELF\n")
 	mov si, ."ZKOS/ZKLOADERELF"
 	mov di, STAGE4_FILE_ADDR
 	
 	call ReadFile
-	Log(."K Executable loaded.\n")
+	LOG(."K Executable loaded.\n")
 	
 	mov word [ELF.fileLocation], STAGE4_FILE_ADDR
 	call LoadELF
 	
 	call PrepareLoaderInfo
 	
-	Log(."I Press any key to execute XtLdr32.\n")
-	call WaitKey
+	LOG(."I Press any key to execute XtLdr32.\n")
+	call Console.WaitKey
 	jmp Enable32
 }
 
@@ -136,35 +135,35 @@ ReadFile: {
 ret }
 
 PrepareLoaderInfo: {
-	Log(.". Acquiring info...\n")
+	LOG(.". Acquiring info...\n")
 	
 	; Signature
 	mov word [LoaderStruct.signature], 'Zk'
 
 	call GetVideoMode
 	call CheckPCI	
-	Log(."K All info saved.\n")
+	LOG(."K All info saved.\n")
 ret }
 
 GetVideoMode: {
-	Log(."I Video Mode: ")
+	LOG(."I Video Mode: ")
 	
 	mov ah, 0Fh | int 10h
 	mov byte [vidmode.id], al
 	mov byte [vidmode.columns], ah
 	
 	xor ah, ah
-	PrintDecNum ax
+	CONSOLE_PRINT_DEC_NUM ax
 	
-	Print(." / ")
+	CONSOLE_PRINT(." / ")
 	
 	mov al, [vidmode.columns]	
-	PrintDecNum ax
-	Print(."\n")
+	CONSOLE_PRINT_DEC_NUM ax
+	CONSOLE_PRINT(."\n")
 ret }
 
 CheckPCI: {
-	Log(.". Checking PCI support.\n")
+	LOG(.". Checking PCI support.\n")
 
 	; PCI Support
 	xor edi, edi
@@ -193,7 +192,7 @@ CheckPCI: {
 ret }
 
 Enable32: {
-	Log(.". Entering 32-bit...\n")
+	LOG(.". Entering 32-bit...\n")
 	
 	BREAK
 	
@@ -249,15 +248,15 @@ LoadELFHeader: {
 	mov ax, [bx + 44]
 	mov [ELF.progHeaderCount], ax
 	
-	Log(."I Image properties:\n")
-	Print(."  Entry Point: 0x")
-	PrintHexNum word [ELF.entryPoint]
-	Print(."\n  ")
-	PrintDecNum [ELF.progHeaderCount]
-	Print(." entries of ")
-	PrintDecNum [ELF.progHeaderSize]
-	Print(." bytes at 0x")
-	PrintHexNum word [ELF.progHeaderTable]
+	LOG(."I Image properties:\n")
+	CONSOLE_PRINT(."  Entry Point: 0x")
+	CONSOLE_PRINT_HEX_NUM word [ELF.entryPoint]
+	CONSOLE_PRINT(."\n  ")
+	CONSOLE_PRINT_DEC_NUM [ELF.progHeaderCount]
+	CONSOLE_PRINT(." entries of ")
+	CONSOLE_PRINT_DEC_NUM [ELF.progHeaderSize]
+	CONSOLE_PRINT(." bytes at 0x")
+	CONSOLE_PRINT_HEX_NUM word [ELF.progHeaderTable]
 ret }
 
 LoadProgramSegments: {	
@@ -300,19 +299,19 @@ LoadSegment: {
 	movsw
 	movsw
 	
-	Print(."\n  p_offset ")
-	PrintDecNum [p_offset]
+	CONSOLE_PRINT(."\n  p_offset ")
+	CONSOLE_PRINT_DEC_NUM [p_offset]
 	
-	Print(."\n  p_vaddr ")
-	PrintDecNum [p_vaddr]
+	CONSOLE_PRINT(."\n  p_vaddr ")
+	CONSOLE_PRINT_DEC_NUM [p_vaddr]
 	
-	Print(."\n  p_filesz ")
-	PrintDecNum [p_filesz]
+	CONSOLE_PRINT(."\n  p_filesz ")
+	CONSOLE_PRINT_DEC_NUM [p_filesz]
 	
-	Print(."\n  p_memsz ")
-	PrintDecNum [p_memsz]
+	CONSOLE_PRINT(."\n  p_memsz ")
+	CONSOLE_PRINT_DEC_NUM [p_memsz]
 	
-	Print(."\n")
+	CONSOLE_PRINT(."\n")
 	
 	; Load segment into ram
 	mov bx, [ELF.fileLocation]
@@ -328,21 +327,21 @@ LoadSegment: {
 ret }
 
 NotAnElf: {
-	Print(."\nNot an ELF file!");
+	CONSOLE_PRINT(."\nNot an ELF file!");
 	jmp Halt
 }
 
 Halt: {
-	Print(."\nHalted.\n")
+	CONSOLE_PRINT(."\nHalted.\n")
 	cli | hlt
 }	
 	
 FileNotFoundOnDir: {
-	Print(."\nFile '")
+	CONSOLE_PRINT(."\nFile '")
 	;mov si, [FATFS.filePathPtr]
-	call print
+	call Console.Print
 	
-	Print(."' not found on directory.")
+	CONSOLE_PRINT(."' not found on directory.")
 	jmp Halt
 }
 

@@ -1,18 +1,18 @@
+/**
+ * Author:   André Morales 
+ * Version:  2.02
+ * Creation: 06/10/2020
+ * Modified: 05/05/2024
+ */
+ 
 #ifndef CONSOLE_H
 #define CONSOLE_H 1
-
-; Author:   André Morales 
-; Version:  2.01
-; Creation: 06/10/2020
-; Modified: 31/01/2022
-
-EXTERN print
-EXTERN classLog
-EXTERN Getch
-EXTERN WaitKey
-EXTERN printDecNum
-EXTERN printHexNum
-EXTERN putch
-EXTERN putnch
+EXTERN Console.Getch
+EXTERN Console.WaitKey
+EXTERN Console.Putch
+EXTERN Console.Putnch
+EXTERN Console.Print
+EXTERN Console.FLog
+EXTERN Console.PrintDecNum
+EXTERN Console.PrintHexNum
 #endif
-

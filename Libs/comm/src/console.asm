@@ -1,32 +1,35 @@
-; Author:   André Morales 
-; Version:  2.01
-; Creation: 06/10/2020
-; Modified: 31/01/2022
+/**
+ * Author:   André Morales 
+ * Version:  2.02
+ * Creation: 06/10/2020
+ * Modified: 05/05/2024
+ */
 
 #include <strings.h>
 #include <serial.h>
 
-GLOBAL print
-GLOBAL classLog
-GLOBAL Getch
-GLOBAL WaitKey
-GLOBAL printDecNum
-GLOBAL printHexNum
-GLOBAL putch
-GLOBAL putnch
+GLOBAL Console.Getch
+GLOBAL Console.WaitKey
+GLOBAL Console.Putch
+GLOBAL Console.Putnch
+GLOBAL Console.Print
+GLOBAL Console.FLog
+GLOBAL Console.PrintDecNum
+GLOBAL Console.PrintHexNum
 
 [SECTION .text]
+[CPU 8086]
 [BITS 16]
 
 /* Prints a single character that was put into AL */
-putch: {
+Console.Putch: {
 	push ax | push bx | push dx
 	
 	cmp al, 0Ah ; Is character newline?
 	jne .print
 	
 	mov al, 0Dh ; Print a carriage return
-	call putch
+	call Console.Putch
 	mov al, 0Ah ; Then print an actual new line
 	
 	.print:
@@ -39,7 +42,7 @@ putch: {
 	pop dx | pop bx | pop ax
 ret }
 
-classLog: {
+Console.FLog: {
 	push ax
 	lodsb
 	push si
@@ -70,19 +73,19 @@ classLog: {
 	mov si, ."[&3.."
 	
 	.end:
-	call print
+	call Console.Print
 	
 	mov si, ."&7]"
-	call print
+	call Console.Print
 	
 	pop si
-	call print
+	call Console.Print
 	
 	pop ax
 ret }
 
 /* Prints a string placed in SI */
-print: {
+Console.Print: {
 	push ax | push bx | push cx | push dx
 	mov bl, 07h
 	
@@ -122,35 +125,35 @@ print: {
 		; Print char
 		mov al, dl
 		.sputch:
-		call putch		
+		call Console.Putch		
 	jmp .char
 		
 	.end:
 	pop dx | pop cx | pop bx | pop ax
 ret }
 
-putnch: {
+Console.Putnch: {
 	xor ch, ch
 	
 	.printch:
-		call putch
+		call Console.Putch
 	loop .printch
 ret }
 
 /* Waits for a key press and stores the key in the AL register. */
-Getch: {
+Console.Getch: {
 	xor ah, ah
 	int 16h
 ret }
 
 /* Waits for a key press. */
-WaitKey: {
+Console.WaitKey: {
 	push ax
-	call Getch
+	call Console.Getch
 	pop ax
 ret }
 
-printHexNum: {
+Console.PrintHexNum: {
 	CLSTACK
 	farg word number
 	lvar char[8] str
@@ -168,7 +171,7 @@ printHexNum: {
 	call Strings.HexToStr
 	
 	mov si, di
-	call print
+	call Console.Print
 	
 	pop di | pop si
 	pop es | pop ds
@@ -176,7 +179,7 @@ printHexNum: {
 	LEAVEFN
 }
 
-printDecNum: {
+Console.PrintDecNum: {
 	CLSTACK
 	lvar char[6] str
 	ENTERFN
@@ -194,7 +197,7 @@ printDecNum: {
 	call Strings.IntToStr
 	
 	mov si, di
-	call print
+	call Console.Print
 	
 	pop di
 	pop si

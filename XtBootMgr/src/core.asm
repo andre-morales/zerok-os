@@ -1,19 +1,16 @@
-[BITS 16]
-[CPU 8086]
-
-; Author:   André Morales 
-; Version:  1.1.0
-; Creation: 07/10/2020
-; Modified: 01/02/2022
-
-%define STACK_ADDRESS 0xA00
-%define PARTITION_ARRAY 0x1B00
-
-; -- [0x0500 - 0x0A00] Stack
-; -- [0x0A00 - 0x1A00] Loaded stage 2
-; -- [0x1A00 - 0x1B00] Unitialiazed varible storage
-; -- [0x1B00 - 0x1C00] Partition array
-; -- [0x2000] Generic stuff buffer
+/**
+ * Author:   André Morales 
+ * Version:  1.1.1
+ * Creation: 07/10/2020
+ * Modified: 05/05/2024
+ *
+ * :: Memory Map ::
+ * -- [0x0500 - 0x0A00] Stack
+ * -- [0x0A00 - 0x1A00] Loaded stage 2
+ * -- [0x1A00 - 0x1B00] Unitialiazed varible storage
+ * -- [0x1B00 - 0x1C00] Partition array
+ * -- [0x2000] Generic stuff buffer
+ */
 
 #include "version.h"
 #include <comm/strings.h>
@@ -21,12 +18,29 @@
 #include <comm/console_macros.h>
 #include <comm/drive.h>
 
+%define STACK_ADDRESS 0xA00
+%define PARTITION_ARRAY 0x1B00
+
+%macro PrintColor 2
+	mov si, %1
+	mov al, %2
+	call printColor
+%endmacro
+
+%macro ClearScreen 1
+	mov ax, %1
+	call clearScreen
+%endmacro
+
 var short cursor
 var byte partitionMapSize
 var byte[6] partitionSizeStrBuff
 var long extendedPartitionLBA
 
 [SECTION .text]
+[BITS 16]
+[CPU 8086]
+
 db 'Xt' ; Two byte signature at binary beginning.
 
 /* Entry point. */
@@ -41,8 +55,8 @@ Start: {
 	
 	sti                                ; Reenable interrupts that were disable back at stage 1.
 
-	Print(."\N\n--- Xt Generic Boot Manager ---")
-	Print(."\NVersion: $#VERSION#")
+	CONSOLE_PRINT(."\N\n--- Xt Generic Boot Manager ---")
+	CONSOLE_PRINT(."\NVersion: $#VERSION#")
 	
 	; Set up division error int handler.
 	mov word [es:0000], DivisionErrorHandler
@@ -51,22 +65,22 @@ Start: {
 	call PrintCurrentVideoMode
 	call GetDriveGeometry
 	
-	Print(."\NPress any key to read the partition map.") 
-	call WaitKey
+	CONSOLE_PRINT(."\NPress any key to read the partition map.") 
+	call Console.WaitKey
 	
 	mov di, PARTITION_ARRAY
 	mov word [Drive.bufferPtr], 0x2000
 	call ReadPartitionMap
 	
-	Print(."\NPartition map read.")
+	CONSOLE_PRINT(."\NPartition map read.")
 	mov ax, di
 	sub ax, PARTITION_ARRAY
 	
 	mov cl, 10 | div cl
 	mov [partitionMapSize], al
 	
-	Print(."\NPress any key to enter boot select...\N")
-	call WaitKey
+	CONSOLE_PRINT(."\NPress any key to enter boot select...\N")
+	call Console.WaitKey
 	jmp Menu
 }
 
@@ -81,16 +95,16 @@ Menu: {
 	
 		mov dx, 00_02h | call setCursor
 		
-		Print(."-XtBootMgr v$#VERSION# [Drive 0x")
+		CONSOLE_PRINT(."-XtBootMgr v$#VERSION# [Drive 0x")
 		
 		xor ah, ah | mov al, [Drive.id]
-		PrintHexNum(ax)
-		Print(."]-")
+		CONSOLE_PRINT_HEX_NUM(ax)
+		CONSOLE_PRINT(."]-")
 	
 	MenuSelect:	
 		call DrawMenu	
 			
-		call Getch
+		call Console.Getch
 		cmp ah, 48h | je .upKey
 		cmp ah, 50h | je .downKey
 		cmp ah, 1Ch | je .enterKey
@@ -121,7 +135,7 @@ Menu: {
 			add di, PARTITION_ARRAY
 			
 			cmp byte [es:di + 0], 05h | jne .L4
-			Print(."\N\N You can't boot an extended partition.")
+			CONSOLE_PRINT(."\N\N You can't boot an extended partition.")
 			jmp BackToMainMenu
 			
 			.L4: {	
@@ -141,19 +155,19 @@ Menu: {
 				pop di
 			}
 						
-			Print(."\N\NReading drive...")
+			CONSOLE_PRINT(."\N\NReading drive...")
 			push word [es:di + 4] | push word [es:di + 2] 
 			mov word [Drive.bufferPtr], 0x7C00
 			call Drive.ReadSector						
 			
 			cmp word [es:0x7DFE], 0xAA55 | jne .notBootable
-			Print(."\NPress any key to boot...\N")	
-			call WaitKey
+			CONSOLE_PRINT(."\NPress any key to boot...\N")	
+			call Console.WaitKey
 			jmp .chain		
 			
 			.notBootable:
-			Print(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
-			call Getch	
+			CONSOLE_PRINT(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
+			call Console.Getch	
 			cmp ah, 15h | jne BackToMainMenu.clear
 			
 			.chain:
@@ -163,7 +177,7 @@ Menu: {
 			jmp 0x0000:0x7C00	
 		
 		BackToMainMenu:
-			call WaitKey
+			call Console.WaitKey
 			.clear:
 		jmp MainMenu
 }
@@ -182,16 +196,16 @@ ReadPartitionMap: {
 	test ax, ax | je .ReadTable ; Did it read properly?
 	
 	; AX is not 0. It failed somehow.
-	Print(."\NSector read failed. The error was:\N ")
+	CONSOLE_PRINT(."\NSector read failed. The error was:\N ")
 	cmp ax, 1 | je .OutOfRangeCHS
-	Print(."Unknown")
+	CONSOLE_PRINT(."Unknown")
 	jmp .ErrorOut
 	
 	.OutOfRangeCHS:
-	Print(."CHS (Cylinder) address out of range")
+	CONSOLE_PRINT(."CHS (Cylinder) address out of range")
 	
 	.ErrorOut:
-	Print(.".\NIgnoring the partitions at this sector.")
+	CONSOLE_PRINT(.".\NIgnoring the partitions at this sector.")
 	jmp .End
 	
 	.ReadTable: {	
@@ -325,16 +339,16 @@ PrintCurrentVideoMode: {
 	mov ah, 0Fh | int 10h
 	push ax
 	
-	Print(."\NCurrent video mode: 0x")
+	CONSOLE_PRINT(."\NCurrent video mode: 0x")
 	
 	xor ah, ah
-	PrintHexNum(ax)
+	CONSOLE_PRINT_HEX_NUM(ax)
 	
-	Print(."\NColumns: ")
+	CONSOLE_PRINT(."\NColumns: ")
 	pop ax
 	mov al, ah
 	xor ah, ah
-	call printDecNum	
+	call Console.PrintDecNum	
 ret }
 
 GetDriveGeometry: {	
@@ -342,42 +356,42 @@ GetDriveGeometry: {
 	call Drive.CHS.GetProperties
 	call Drive.LBA.GetProperties
 
-	Print(."\N\N[Geometries of drive: ")
+	CONSOLE_PRINT(."\N\N[Geometries of drive: ")
 	xor ah, ah
 	mov al, [Drive.id]
-	PrintHexNum(ax)
-	Print(."h] ")
+	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT(."h] ")
 	
-	Print(."\N-- CHS")
-	Print(."\N Bytes per Sector: ")
-	PrintDecNum [Drive.CHS.bytesPerSector]
+	CONSOLE_PRINT(."\N-- CHS")
+	CONSOLE_PRINT(."\N Bytes per Sector: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.bytesPerSector]
 	
-	Print(."\N Sectors per Track: ")
+	CONSOLE_PRINT(."\N Sectors per Track: ")
 	xor ah, ah
 	mov al, [Drive.CHS.sectorsPerTrack]
-	call printDecNum
+	call Console.PrintDecNum
 
-	Print(."\N Heads Per Cylinder: ")
-	PrintDecNum [Drive.CHS.headsPerCylinder]
+	CONSOLE_PRINT(."\N Heads Per Cylinder: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.headsPerCylinder]
 	
-	Print(."\N Cylinders: ")
-	PrintDecNum [Drive.CHS.cylinders]
+	CONSOLE_PRINT(."\N Cylinders: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.cylinders]
 	 
-	Print(."\N-- LBA")
+	CONSOLE_PRINT(."\N-- LBA")
 	
 	mov al, [Drive.LBA.available]
 	test al, al | jz .printLBAProps
 	cmp al, 1   | je .noDriveLBA
-	Print(."\N The BIOS doesn't support LBA.")
+	CONSOLE_PRINT(."\N The BIOS doesn't support LBA.")
 	jmp .End
 	
 	.noDriveLBA:
-	Print(."\N The drive doesn't support LBA.")
+	CONSOLE_PRINT(."\N The drive doesn't support LBA.")
 	jmp .End
 	
 	.printLBAProps:
-	Print(."\N Bytes per Sector: ")
-	PrintDecNum [Drive.LBA.bytesPerSector]
+	CONSOLE_PRINT(."\N Bytes per Sector: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.LBA.bytesPerSector]
 	
 	.End:
 ret }
@@ -418,10 +432,10 @@ DrawMenu: {
 		.printIndent:
 		cmp byte [es:di + 1], 0 ; Listing primary partitions?
 		je .printTypeName
-		Putch(' ')
+		CONSOLE_PUTCH(' ')
 		
 		.printTypeName:	
-		Putch(bh)		
+		CONSOLE_PUTCH(bh)		
 		mov al, [es:di] ; Partition type
 		call getPartitionTypeName
 		mov al, bl | call printColor
@@ -481,9 +495,9 @@ drawSquare: {
 	mov dx, bx
 	call setCursor
 	
-	Putch(0xC9)
-	Putnch 0xCD, [bp - 1]
-	Putch(0xBB)
+	CONSOLE_PUTCH(0xC9)
+	CONSOLE_PUTNCH 0xCD, [bp - 1]
+	CONSOLE_PUTCH(0xBB)
 	
 	; Left box column
 	mov dx, bx	
@@ -493,16 +507,16 @@ drawSquare: {
 	.leftC:
 		inc dh
 		call setCursor	
-		call putch
+		call Console.Putch
 	loop .leftC
 	
 	inc dh
 	call setCursor	
 	
 	; Bottom box row
-	Putch(0xC8)
-	Putnch 0xCD, [bp - 1]
-	Putch(0xBC)
+	CONSOLE_PUTCH(0xC8)
+	CONSOLE_PUTNCH 0xCD, [bp - 1]
+	CONSOLE_PUTCH(0xBC)
 	
 	; Right box row
 	mov dx, bx
@@ -513,7 +527,7 @@ drawSquare: {
 	.rightC:
 		inc dh
 		call setCursor	
-		call putch
+		call Console.Putch
 	loop .rightC	
 	
 	mov sp, bp
@@ -554,22 +568,22 @@ DivisionErrorHandler: {
 	push ds
 	
 	push cs | pop ds
-	Print(."\NDivision overflow or division by zero.\r")
-	Print(."\NError occurred at: ")
-	PrintHexNum word [bp + 4]
-	Print(."h:")
-	PrintHexNum word [bp + 2]
-	Print(."h\NAX: 0x") | PrintHexNum word [bp - 2]
-	Print(." BX: 0x") | PrintHexNum word [bp - 4]
-	Print(." CX: 0x") | PrintHexNum word [bp - 6]
-	Print(." DX: 0x") | PrintHexNum word [bp - 8]
-	Print(."\NSP: 0x")
+	CONSOLE_PRINT(."\NDivision overflow or division by zero.\r")
+	CONSOLE_PRINT(."\NError occurred at: ")
+	CONSOLE_PRINT_HEX_NUM word [bp + 4]
+	CONSOLE_PRINT(."h:")
+	CONSOLE_PRINT_HEX_NUM word [bp + 2]
+	CONSOLE_PRINT(."h\NAX: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 2]
+	CONSOLE_PRINT(." BX: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 4]
+	CONSOLE_PRINT(." CX: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 6]
+	CONSOLE_PRINT(." DX: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 8]
+	CONSOLE_PRINT(."\NSP: 0x")
 	lea ax, [bp + 8]
-	PrintHexNum(ax)
-	Print(." BP: 0x") | PrintHexNum word [bp - 0]
-	Print(." SI: 0x") | PrintHexNum word [bp - 10]
-	Print(." DI: 0x") | PrintHexNum word [bp - 12]
-	Print(."\NSystem halted.")
+	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT(." BP: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 0]
+	CONSOLE_PRINT(." SI: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 10]
+	CONSOLE_PRINT(." DI: 0x") | CONSOLE_PRINT_HEX_NUM word [bp - 12]
+	CONSOLE_PRINT(."\NSystem halted.")
 	cli | hlt
 }
 
@@ -580,8 +594,8 @@ BootFailureHandler: {
 	
 	.L1:
 	push cs | pop ds
-	Print(."\NXtBootMgr got control back. The bootsector either contains no executable code, or invalid code.\NGoing back to the main menu.")
-	call WaitKey
+	CONSOLE_PRINT(."\NXtBootMgr got control back. The bootsector either contains no executable code, or invalid code.\NGoing back to the main menu.")
+	call Console.WaitKey
 	jmp Menu
 }
 

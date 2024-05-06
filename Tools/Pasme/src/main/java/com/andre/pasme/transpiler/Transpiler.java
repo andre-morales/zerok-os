@@ -31,10 +31,10 @@ public class Transpiler {
 	static final String BSS_SECTION_MARKER = "@bss:";
 	
 	/** Command line defines */
-	public Map<String, String> defines;   
+	Map<String, String> cmdLineDefines;   
 	
 	/** Paths that might contain files included in the source */
-	public List<String> includePaths;     
+	List<String> includePaths;     
 	
 	/** All #define statements plus all the command line defines. */
 	Map<String, String> definedConstants;       
@@ -58,7 +58,8 @@ public class Transpiler {
 	boolean onMultiLineComment = false;
 	
 	public Transpiler(){
-		defines = new HashMap<>();
+		cmdLineDefines = new HashMap<>();
+		includePaths = new ArrayList<>();
 		rodataStrings = new ArrayList<>();
 		bssSymbols = new ArrayList<>();
 		stackVars = new LinkedHashMap<>();
@@ -69,7 +70,7 @@ public class Transpiler {
 		this.inputFile = inputFile.toPath();
 
 		rodataStrings.clear();
-		definedConstants = new HashMap<>(defines);
+		definedConstants = new HashMap<>(cmdLineDefines);
 
 		var lines = readLines(inputFile);
 		lines = Preprocessor.pass(this, lines);
@@ -112,11 +113,11 @@ public class Transpiler {
 		
 		writeLines(outLines, outputFile);
 	}
-	
+		
 	/**
 	 * Processes a line of code and turns it into multiple ordered statements. 
 	 * This function also handles folding brackets. */
-	List<Line> splitAndCleanLine(Line line) {
+	private List<Line> splitAndCleanLine(Line line) {
 		var lines = new ArrayList<Line>();
 
 		char onQuotes = 0;
@@ -186,7 +187,7 @@ public class Transpiler {
 		return lines;
 	}
 	
-	List<Line> readLines(File file) {
+	private List<Line> readLines(File file) {
 		try {
 			return Preprocessor.readAllLines(file);
 		} catch (IOException ex) {
@@ -194,7 +195,7 @@ public class Transpiler {
 		}
 	}
 	
-	void writeLines(List<Line> lines, File outputFile) {
+	private void writeLines(List<Line> lines, File outputFile) {
 		try (var out = new FileWriter(outputFile)) {
 			for (var line : lines) {
 				out.write(line.content);
@@ -205,7 +206,7 @@ public class Transpiler {
 		}
 	}
 	
-	void dumpSectionROData(Line cause, List<Line> lines) {
+	private void dumpSectionROData(Line cause, List<Line> lines) {
 		undumpedRodataSymbols = false;
 		
 		for (int i = 0; i < rodataStrings.size();) {
@@ -216,7 +217,7 @@ public class Transpiler {
 		}
 	}
 	
-	void dumpSectionBSS(Line cause, List<Line> lines) {
+	private void dumpSectionBSS(Line cause, List<Line> lines) {
 		undumpedBssSymbols = false;
 		
 		for (var variable : bssSymbols) {
@@ -237,7 +238,7 @@ public class Transpiler {
 	/** Processes the statement given and outputs a result to be placed in the file.
 	 *  @param stat pure statement after splitting.
 	 *  @param tr_stat trimmed statement to be used for logic. */
-	List<Line> processStatement(Line line) {
+	private List<Line> processStatement(Line line) {
 		var stat = line.content;
 		var tr_stat = line.content.trim();
 		
@@ -358,7 +359,7 @@ public class Transpiler {
 		return List.of(line);
 	}
 			
-	static String getConstantString(String str) {
+	private static String getConstantString(String str) {
 		if (str.startsWith("\"")) {
 			str = str
 				.replace("\\r", "\", 0Dh, \"")
@@ -368,7 +369,7 @@ public class Transpiler {
 		return str + ", 0";
 	}
 
-	public Pair<String, Integer> getVariable(String line){
+	private Pair<String, Integer> getVariable(String line){
 		var pair = new Pair<String, Integer>();
 		var sp = line.split(" ", 2);
 		pair.key = sp[1].trim(); // Variable name
@@ -386,15 +387,23 @@ public class Transpiler {
 		return pair;	
 	}
 	
-	public void reserveStackVar(String stat){
+	private void reserveStackVar(String stat){
 		var pair = getVariable(stat);
 		currentStackVarsSize += pair.value;
 		stackVars.put(pair.key, currentStackVarsSize);
 	}
 	
-	public void reserveStackArg(String stat){
+	private void reserveStackArg(String stat){
 		var pair = getVariable(stat);
 		stackArgs.put(pair.key, 4 + currentStackArgsSize);
 		currentStackArgsSize += pair.value;
+	}
+	
+	public void setIncludePaths(List<String> includePaths) {
+		this.includePaths = includePaths;
+	}
+	
+	public void setDefines(Map<String, String> defines) {
+		this.cmdLineDefines = defines;
 	}
 }
