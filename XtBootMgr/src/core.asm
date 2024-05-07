@@ -255,7 +255,12 @@ ReadPartitionMap: {
 				pop ax | stosw ; Low  [DI - 4]
 				pop ax | stosw ; High [DI - 2]
 				
-				cmp bl, 05h | jne .endllpe ; Is it and extended partition?
+				cmp bl, 05h | je .isExtended ; Is it and extended partition (CHS)?
+				cmp bl, 0Fh | je .isExtended
+				
+				jmp .endllpe
+				
+				.isExtended:
 				mov dx, [es:di - 6]
 				mov ax, [es:di - 8]
 				mov [extendedPartitionLBA], ax
@@ -687,7 +692,7 @@ ret }
 
 PartitionTypeNamePtrIndexArr: {
 	db 0, 1, 1, 1, 1, 5, 2, 6
-	db 1, 1, 1, 3, 1, 1, 7, 1
+	db 1, 1, 1, 3, 1, 1, 7, 8
 	db 1, 1, 1, 1, 1, 1, 1, 1
 	db 1, 1, 1, 1, 1, 1, 1, 1
 	db 1, 1, 1, 1, 1, 1, 1, 1
@@ -726,9 +731,10 @@ PartitionTypeNamePtrArr: {
 	dw ."FAT / RAW"
 	dw ."FAT32"
 	dw ."Linux"
-	dw ."Extended Partition"
+	dw ."Extended Partition (CHS)"
 	dw ."NTFS"
 	dw ."FAT(12/16)"
+	dw ."Extended Partition (LBA)"
 }
 
 @rodata:

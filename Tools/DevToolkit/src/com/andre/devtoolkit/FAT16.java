@@ -12,7 +12,7 @@ public class FAT16 {
 	private final int reservedSectors;
 	
 	public FAT16(DiskPartition partition) {
-		if (partition.getType() != PartitionType.FAT16) throw new RuntimeException("Partition is not of FAT16 type.");
+		if (partition.getType() != PartitionType.FAT16B_LBA) throw new RuntimeException("Partition is not of FAT16 type.");
 		this.partition = partition;
 		
 		reservedSectors = getReservedSectorCount();

@@ -13,6 +13,7 @@ public class DiskPartition {
 	private final int typeId;
 	private int firstSector;
 	private int sizeInSectors;
+	private boolean isLogicalPartition;
 	
 	DiskPartition(int id, File disk, byte[] entry, int offset) {
 		this.id = id;
@@ -57,13 +58,17 @@ public class DiskPartition {
 	}
 	
 	private String getTypeDescription() {
-		return type.NAME;
+		return type.description;
+	}
+	
+	private boolean isLogical() {
+		return isLogicalPartition;
 	}
 	
 	@Override
 	public String toString() {
 		var typeStr = getTypeDescription();
 		var sizeStr = getSizeDescription();
-		return String.format("[%d] 0x%02X='%s' : %s : 0x%02X", id, type, typeStr, sizeStr, firstSector);
+		return String.format("[%d] 0x%02X='%s' : %s : 0x%02X", id, typeId, typeStr, sizeStr, firstSector);
 	}
 }

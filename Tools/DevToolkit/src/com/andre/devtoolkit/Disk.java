@@ -27,12 +27,21 @@ public class Disk {
 		// Itreate over 4 initial partitions
 		for (int i = 0; i < 4; i++) {
 			var part = new DiskPartition(i, diskFile, mbrBytes, i * 16);
-			if (part.getType().TYPE_ID == 0) return partitions;
+			if (part.getType().typeId == 0) continue;
 			
 			partitions.add(part);
+			
+			if (part.getType().isExtended()) {
+				var logicalParts = listExtendedPartitions(part);
+				partitions.addAll(logicalParts);
+			}
 		}
 		
 		return partitions;
+	}
+	
+	private List<DiskPartition> listExtendedPartitions(DiskPartition extendPart) {
+		return List.of();
 	}
 	
 	public DiskSyncService createSyncService(String srcPath, String diskPath) {

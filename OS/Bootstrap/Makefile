@@ -68,7 +68,7 @@ syncdisk:
 	$(DEVTK) syncdisk "$(TestDisk)" -with diskDropbox\ZKOS -at Z:\ZKOS\
 	
 mountdisk:
-	$(DEVTK) mountdisk "$(TestDisk)"
+	$(DEVTK) mount "$(TestDisk)"
 
 unmountdisk:
-	$(DEVTK) unmountdisk "$(TestDisk)"
+	$(DEVTK) unmount "$(TestDisk)"
