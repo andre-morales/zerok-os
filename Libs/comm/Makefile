@@ -1,7 +1,7 @@
 PASME=..\\..\\Tools\\pasme
 YASM=yasm
 
-all: build/strings.o build/serial.o build/drive.o build/console.o build/fat1x.o
+all: build/strings.o build/serial.o build/drive.o build/console.o build/mem.o
 
 build/serial.o: src/serial.asm serial.h
 	$(PASME) transpile src/serial.asm -to build/serial.nasm -I .
@@ -22,6 +22,12 @@ build/drive.o: src/drive.asm drive.h
 build/fat1x.o: src/fat1x.asm fat1x.h
 	$(PASME) transpile src/fat1x.asm -to build/fat1x.nasm -I .
 	$(YASM) build/fat1x.nasm -f elf -o build/fat1x.o
+
+build/mem.o: src/mem.asm mem.h
+	$(PASME) transpile src/mem.asm -to build/mem.nasm -I .
+	$(YASM) build/mem.nasm -f elf -o build/mem.o
+
+
 
 clean:
 	del build\*.* /q

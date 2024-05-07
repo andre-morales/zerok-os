@@ -13,6 +13,8 @@
  */
 
 #include "version.h"
+#include "video.h"
+#include <comm/mem.h>
 #include <comm/strings.h>
 #include <comm/console.h>
 #include <comm/console_macros.h>
@@ -24,13 +26,15 @@
 %macro PrintColor 2
 	mov si, %1
 	mov al, %2
-	call printColor
+	call Video.PrintColor
 %endmacro
 
 %macro ClearScreen 1
 	mov ax, %1
-	call clearScreen
+	call Video.ClearScreen
 %endmacro
+
+EXTERN Partitions.GetPartTypeName
 
 var short cursor
 var byte partitionMapSize
@@ -61,6 +65,13 @@ Start: {
 	; Set up division error int handler.
 	mov word [es:0000], DivisionErrorHandler
 	mov word [es:0002], ds
+	
+	; Initialize memy allocation
+	call Mem.Init
+	
+	;mov ax, 4
+	;call Mem.Alloc
+	;CONSOLE_PRINT_HEX_NUM ax
 	
 	call PrintCurrentVideoMode
 	call GetDriveGeometry
@@ -93,7 +104,7 @@ Menu: {
 		mov ax, 25_17h
 		call drawSquare
 	
-		mov dx, 00_02h | call setCursor
+		mov dx, 00_02h | call Video.SetCursor
 		
 		CONSOLE_PRINT(."-XtBootMgr v$#VERSION# [Drive 0x")
 		
@@ -410,7 +421,7 @@ DrawMenu: {
 	push ds
 	push es
 	
-	mov dx, 02_02h | call setCursor
+	mov dx, 02_02h | call Video.SetCursor
 		
 	mov di, PARTITION_ARRAY
 	xor cl, cl
@@ -419,7 +430,7 @@ DrawMenu: {
 	.drawPartition:
 		xor ax, ax | mov es, ax
 		
-		call setCursor
+		call Video.SetCursor
 		mov bh, ' '  ; (Prefix) = ' '
 		mov bl, 0x6F ; (Color) = White on orange.
 		cmp cl, [cursor] | jne .printIndent ; Is this the selected item? If not, skip.
@@ -442,8 +453,8 @@ DrawMenu: {
 		.printTypeName:	
 		CONSOLE_PUTCH(bh)		
 		mov al, [es:di] ; Partition type
-		call getPartitionTypeName
-		mov al, bl | call printColor
+		call Partitions.GetPartTypeName
+		mov al, bl | call Video.PrintColor
 				
 		PrintColor ." (", bl
 		{
@@ -459,7 +470,7 @@ DrawMenu: {
 			call Strings.IntToStr
 			
 			mov al, bl
-			call printColor
+			call Video.PrintColor
 			
 			pop di | pop dx
 		}
@@ -476,18 +487,6 @@ DrawMenu: {
 	mov sp, bp
 	pop bp
 ret }
-
-getPartitionTypeName: {
-	push bx
-	
-	mov bl, al
-	xor bh, bh
-	mov bl, [PartitionTypeNamePtrIndexArr + bx]	
-	add bx, bx
-	mov si, [PartitionTypeNamePtrArr + bx]
-	
-	pop bx
-ret }
 	
 drawSquare: {
 	push bp
@@ -498,7 +497,7 @@ drawSquare: {
 	
 	; Top box row
 	mov dx, bx
-	call setCursor
+	call Video.SetCursor
 	
 	CONSOLE_PUTCH(0xC9)
 	CONSOLE_PUTNCH 0xCD, [bp - 1]
@@ -511,12 +510,12 @@ drawSquare: {
 	mov cl, [bp - 2]
 	.leftC:
 		inc dh
-		call setCursor	
+		call Video.SetCursor	
 		call Console.Putch
 	loop .leftC
 	
 	inc dh
-	call setCursor	
+	call Video.SetCursor	
 	
 	; Bottom box row
 	CONSOLE_PUTCH(0xC8)
@@ -531,37 +530,12 @@ drawSquare: {
 	mov cl, [bp - 2]
 	.rightC:
 		inc dh
-		call setCursor	
+		call Video.SetCursor	
 		call Console.Putch
 	loop .rightC	
 	
 	mov sp, bp
 	pop bp
-ret }
-
-clearRect: {
-	push bp
-	mov bp, sp
-	push ax | push bx | push cx | push dx
-	
-	mov ax, 0600h    ; AH = Scroll up, AL = Clear
-	mov bh, [bp + 8] ; Foreground / Background
-	mov cx, [bp + 6] ; Origin
-	mov dx, [bp + 4] ; Destination
-	int 10h
-		
-	pop dx | pop cx | pop bx | pop ax
-	pop bp
-ret 6 }
-
-clearScreen: {
-	push ax
-	xor ax, ax           | push ax
-	mov ax, 18_27h       | push ax
-	call clearRect
-	
-	xor dx, dx
-	call setCursor
 ret }
 
 /* CHS calculation may fail and throw execution here. */ 
@@ -602,139 +576,6 @@ BootFailureHandler: {
 	CONSOLE_PRINT(."\NXtBootMgr got control back. The bootsector either contains no executable code, or invalid code.\NGoing back to the main menu.")
 	call Console.WaitKey
 	jmp Menu
-}
-
-printColor: {
-	push ax
-	push bx
-	push cx
-	push dx
-	
-	; Save color
-	xor bh, bh
-	mov bl, al
-	push bx
-	
-	; Get cursor position
-	mov ah, 03h
-	xor bh, bh
-	int 10h
-
-	pop bx ; Get color back
-	
-	.char:
-		lodsb
-		test al, al
-		jz .end
-		
-		cmp al, 0Ah
-		je .putraw
-		cmp al, 0Dh
-		je .putraw
-		
-		; Print only at cursor position with color
-		mov ah, 09h
-		mov cx, 1
-		int 10h
-		
-		; Set cursor position
-		inc dl ; Increase X
-		mov ah, 02h
-		int 10h
-	jmp .char
-	
-	.putraw:
-		; Teletype output
-		mov ah, 0Eh
-		int 10h
-		
-		; Get cursor position
-		mov ah, 03h
-		int 10h
-	jmp .char
-	
-	.end:
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-ret }	
-
-getCursor: {
-	push ax
-	push bx
-	push cx
-	
-	mov ah, 03h
-	xor bh, bh
-	int 10h
-	
-	pop cx
-	pop bx
-	pop ax
-ret }
-
-setCursor: {
-	push ax
-	push bx
-	push cx
-	push dx 
-	
-	mov ah, 02h ; Set cursor position
-	xor bh, bh
-	int 10h
-	
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-ret }
-
-PartitionTypeNamePtrIndexArr: {
-	db 0, 1, 1, 1, 1, 5, 2, 6
-	db 1, 1, 1, 3, 1, 1, 7, 8
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 4, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-	db 1, 1, 1, 1, 1, 1, 1, 1
-}
-
-PartitionTypeNamePtrArr: {
-	dw ."Empty"
-	dw ."Unknown"
-	dw ."FAT / RAW"
-	dw ."FAT32"
-	dw ."Linux"
-	dw ."Extended Partition (CHS)"
-	dw ."NTFS"
-	dw ."FAT(12/16)"
-	dw ."Extended Partition (LBA)"
 }
 
 @rodata:

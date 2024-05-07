@@ -35,11 +35,21 @@ boot: src/boot.asm src/boot.ld
 	$(DEVTK) burn build/bin/boot.img -to "$(TestDisk)" -length 440
 
 # -- Core --
-core: src/core.asm src/core.ld
+core: build/core.o build/video.o build/partitions.o src/core.ld
+	$(LD) build/core.o build/video.o build/partitions.o $(COMM)/mem.o $(COMM)/strings.o $(COMM)/serial.o $(COMM)/console.o $(COMM)/drive.o -T src/core.ld -o build/bin/core.img
+	$(DEVTK) burn build/bin/core.img -to "$(TestDisk)" -dstOff 0x200
+
+build/core.o: src/core.asm
 	$(PASME) transpile src/core.asm -to build/core.nasm $(PT_FLAGS)
 	$(YASM) build/core.nasm -f elf -o build/core.o
-	$(LD) build/core.o $(COMM)/strings.o $(COMM)/serial.o $(COMM)/console.o $(COMM)/drive.o -T src/core.ld -o build/bin/core.img
-	$(DEVTK) burn build/bin/core.img -to "$(TestDisk)" -dstOff 0x200
+
+build/partitions.o: src/partitions.asm
+	$(PASME) transpile src/partitions.asm -to build/partitions.nasm $(PT_FLAGS)
+	$(YASM) build/partitions.nasm -f elf -o build/partitions.o
+
+build/video.o: src/video.asm
+	$(PASME) transpile src/video.asm -to build/video.nasm $(PT_FLAGS)
+	$(YASM) build/video.nasm -f elf -o build/video.o
 
 clean:
 	-del build\*.* /q
