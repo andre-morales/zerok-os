@@ -3,7 +3,7 @@
  *
  * Author:   André Morales 
  * Creation: 07/10/2020
- * Modified: 04/05/2024
+ * Modified: 06/05/2024
  *
  * First stage in the booting process. This loader will be recored in the VBR of the partition
  * the OS gets installed on.
@@ -51,7 +51,7 @@ start: {
 	call VerifyDriveNumber
 	mov [Drive.id], dl
 	
-	CONSOLE_PRINT(."$#VERSION#")
+	CONSOLE_PRINT(."-- ZkBootrap $#VERSION#")
 	
 	call TryDrive
 	
@@ -90,9 +90,9 @@ TryDrive: {
 	check the extended partitions too. */
 
 	; Load MBR (sector 0) to 0x7600
-	mov word [Drive.bufferPtr], 0x7600
 	xor dx, dx
 	xor bx, bx
+	mov di, 0x7600
 	call Drive.ReadSector
 
 	; Point SI to the first entry in the MBR
@@ -107,7 +107,7 @@ TryDrive: {
 		; Load first sector of the partition to 0x7800
 		mov dx, [si + 8]
 		mov bx, [si + 10]
-		mov word [Drive.bufferPtr], 0x7800
+		mov di, 0x7800
 		call Drive.ReadSector
 		
 		; Check if it is an extended partition (type 0x05)
@@ -156,10 +156,10 @@ ScanExtendedPartition: {
 	
 	.firstEntry:
 		push bx | push dx
-		mov word [Drive.bufferPtr], 0x7A00
 
 		add dx, [ds:si + 8]
 		adc bx, [ds:si + 10]
+		mov di, 0x7A00
 		call Drive.ReadSector
 				
 		push si
@@ -185,7 +185,7 @@ ScanExtendedPartition: {
 		adc cx, [$extendedLBA_H]
 		mov bx, cx		
 
-		mov word [Drive.bufferPtr], 0x7800
+		mov di, 0x7800
 		call Drive.ReadSector
 		
 		jmp .firstEntry
@@ -205,7 +205,7 @@ loadStage2: {
 
 	; Read the first sector after our VBR
 	mov si, STAGE2_ADDR
-	mov word [Drive.bufferPtr], si
+	mov di, si
 	call .ReadNextSector
 	
 	; Get the signature stored in the begginning of Stage 2 and test it.
@@ -238,7 +238,7 @@ loadStage2: {
 		
 		call Drive.ReadSector
 				
-		add word [Drive.bufferPtr], 0x200
+		add di, 0x200
 	ret }
 }
 
@@ -258,15 +258,20 @@ Drive:
 
 	.Init: {
 		mov di, lbaDAPS
+		
+		; Clear DAPS
+		mov cx, 16
 		xor ax, ax
-		mov cx, 16 | rep stosb
+		rep stosb
+		
 		mov byte [lbaDAPS.size], 16
 		mov word [lbaDAPS.sectors], 1
 	
 		mov dl, [Drive.id]
 		
+		; INT 13h : 41h : Query LBA availability 
 		mov bx, 0x55AA
-		mov ah, 41h | int 13h ; LBA available?
+		mov ah, 41h | int 13h
 		
 		jc .NoLBA
 		cmp bx, 0xAA55 | jne .NoLBA
@@ -288,9 +293,10 @@ Drive:
 		ENTERFN
 		
 		push bx | push dx
-		
 		push es | push di
 		push si | push cx
+		
+		mov [Drive.bufferPtr], di
 		
 		mov ax, [bp - 4]
 		mov [Drive.readLBA + 0], ax
@@ -306,15 +312,14 @@ Drive:
 
 		pop cx | pop si
 		pop di | pop es
-		
 		pop dx | pop bx
 
 		LEAVEFN
 	}
 #else
 	var void Drive.CHSaddr
-	var short Drive.headsPerCylinder
-	var short Drive.sectorsPerTrack
+	var short Drive.heads
+	var short Drive.sectors
 	var short Drive.sectorsTimesHeads
 	var short Drive.cylinders
 	
@@ -352,6 +357,8 @@ Drive:
 		stosw ; Cylinders
 	ret }
 	
+	; [BX:DX] = Sector LBA
+	; [DI] = Desination pointer in DX
 	.ReadSector: {
 		CLSTACK
 		; [ BP - 2]
@@ -361,34 +368,42 @@ Drive:
 		; [ BP - 4]		
 		lvar byte HEAD      
 		ENTERFN
+
+		push si ; [BP - 6]
+		push cx ; [BP - 8]
 		
-		push bx ; [BP - 6]
-		push dx ; [BP - 8]
+		; Save sector LBA BX:DX at the top of the stack
+		push bx ; [BP - 10]
+		push dx ; [BP - 12]
 		
-		push si
-		push cx
-			
 		; -- Reading as CHS (Convert LBA to CHS) --
-		; Calculate cylinder
-		mov dx, [bp - 6]					 ; Get LBA
-		mov ax, [bp - 8]   
-		div word [Drive.sectorsTimesHeads]   ; LBA / (HPC * SPT)
+		; 1) Calculate cylinder
+		; Recover LBA into DX:AX and save it again to keep it on the stack
+		pop ax
+		pop dx
+		push dx
+		push ax
+
+		div word [Drive.sectorsTimesHeads]   ; LBA / (SPT * HPC)
 		mov [$CYLINDER], ax                  ; Save Cylinders
 		
 		cmp ax, [Drive.cylinders] | jg haltm ; Is cylinder number safe (out of bounds)?
 
-		; Calculate sector to BP - 3
-		mov dx, [bp - 6]					 ; Get LBA
-		mov ax, [bp - 8]              		
-		div word [Drive.sectorsPerTrack]     ; LBA % SPT + 1 | LBA % CX + 1
+		; 2) Calculate sector
+		; Recover LBA into DX:AX and save it again to keep it on the stack
+		pop ax
+		pop dx
+		push dx
+		push ax     
+		
+		div word [Drive.sectors]     ; LBA % SPT + 1 
 		inc dx
 		mov [$SECTOR], dl
 		
-		; Calculate head index
+		; 3) Calculate head index
 		xor dx, dx
-		div word [Drive.headsPerCylinder]    ; (LBA / SPT) % HPC # (LBA / CX) % HPC
+		div word [Drive.heads]    ; (LBA / SPT) % HPC
 		mov [$HEAD], dl
-		
 		
 		; Now restore the values calculated to read a sector
 		; CH = Cylinder
@@ -409,12 +424,12 @@ Drive:
 		; Head
 		mov dh, [$HEAD]
 		
-		mov bx, [Drive.bufferPtr]
+		mov bx, di
 		mov dl, [Drive.id]
 		mov ax, 0x02_01 | int 13h ; CHS read
 		
-		pop cx | pop si
 		pop dx | pop bx
+		pop cx | pop si
 		
 		LEAVEFN
 	}
@@ -438,9 +453,6 @@ ret }
 
 @rodata:
 
-times 510-($-$$) db 0x90 ; Fill the rest of the boostsector code with no-ops
-dw 0xAA55                ; Boot signature
-
 ; --------- Variable space ---------
 [SECTION .bss]
 #ifdef LBA_AVAILABLE
@@ -452,8 +464,6 @@ lbaDAPS:
 					 resw 1 ; Destination segment (0)
 	Drive.readLBA:	 resd 1 ; Lower LBA (~)
 					 resd 1 ; Upper LBA (0)
-#else
-	Drive.bufferPtr: resw 1 ; Destination buffer (0x2000)
 #endif
 
 @bss:

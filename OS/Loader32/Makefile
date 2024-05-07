@@ -1,14 +1,16 @@
 # -- Config --
-LOADER_OBJS=entry_stub.o core.o lib/string.o lib/stdio.o hw/model16.o hw/vga_video.o hw/acpi.o hw/pci.o hw/serial.o hw/gdt.o hw/isa.o
+LOADER_OBJS=stub.o core.o lib/string.o lib/stdio.o hw/model16.o hw/vga_video.o hw/acpi.o hw/pci.o hw/serial.o hw/gdt.o hw/isa.o
 
 # -- Tools --
 PASME=..\\..\\Tools\\pasme
+YASM=yasm
+LD=..\\..\\Tools\\ld
 CC=..\\..\\Tools\\gcc
-CL=..\\..\\Tools\\ld
 
 # Flags for just the GCC compiler
 CCFLAGS=-ffreestanding -nostdlib -lgcc -std=c99 -fvisibility=hidden -O3 -masm=intel -Isrc -Isrc/stdlib -include global.h
-CLFLAGS=-nostdlib -O3
+LDFLAGS=-nostdlib -O3 --strip-all
+
 .PHONY: all loader loader_stdlib clean debug
 
 all: loader
@@ -21,16 +23,16 @@ loader: build/ZKLOADER.ELF
 
 # Final binary
 build/ZKLOADER.ELF: linker_script.ld $(LDR_OBJS) | build
-	$(CL) -T linker_script.ld -o build/ZKLOADER.ELF $(LDR_OBJS) $(CLFLAGS) 
+	$(LD) -T linker_script.ld -o build/ZKLOADER.ELF $(LDR_OBJS) $(LDFLAGS) 
 
 # Build folder
 build:
-	-mkdir build
+	-@mkdir build 2>nul || cd .
 	
 # Assembly stub
-build/obj/entry_stub.o: entry_stub.pa	
-	${PASME} transpile entry_stub.pa -to build/stub.asm
-	yasm build/stub.asm -o build/obj/entry_stub.o -f elf
+build/obj/stub.o: stub.asm
+	$(PASME) transpile stub.asm -to build/stub.nasm
+	$(YASM) build/stub.nasm -f elf -o build/obj/stub.o
 
 # General rule
 build/obj/%.o: src/%.c src/%.h
@@ -44,4 +46,4 @@ clean:
 	del build\obj\hw\*.* /q
 
 debug:
-	-echo Nothing to debug here...
+	echo Nothing to debug here...

@@ -7,17 +7,7 @@
  *
  * This bootstrapper is stored as a raw binary file in the partition. It is responsible for loading
  * the ELF execute in the same folder and switching to 32 bit mode.
- *
- * :: Physical Memory Map ::
- * -- [  0  -  500] IVT and BIOS Data Area
- * -- [ 500 -  520] Our CPU Structures
- * -- [	 .....	 ] 
- * -- [ 700 -   # ] Stage 3 (us)
- * -- [1200 -   # ] FAT16 Cluster Buffer
- * -- [2000 -   # ] Stage 4 file will be loaded here
- * -- [3000 -  ...] Stage 4 code starts here
- * -- [ ... - 7FF0] Stack
- **/
+ */
 #include "version.h"
 #include <comm/console.h>
 #include <comm/console_macros.h>
@@ -28,9 +18,9 @@
 
 %define LOG CONSOLE_FLOG
 
-%define FAT16_CLUSTER_BUFFER_ADDR 0x1200
-%define STAGE4_FILE_ADDR 0x2000
-%define STAGE4_EXEC_ADDR 0x3000
+EXTERN __fat16_cluster_buffer_addr
+EXTERN __loader32_file_addr
+EXTERN __loader32_start_addr
 
 var short ELF.fileLocation
 var int ELF.entryPoint
@@ -56,9 +46,9 @@ var void LoaderStruct
 	var int pci.entry
 var void LoaderStruct.end
  
-[SECTION .text]
 [BITS 16]
 [CPU 386]
+[SECTION .gdt]
 dw 'Zk'
 
 ; GDT Descriptor
@@ -89,12 +79,11 @@ GDT: {
 	db 0		 ; Base (24:31)
 .End: }
 
-times 512-($-$$) db 0x00 ; Fill everything until 0x700
-
+[SECTION .text]
 jmp start
 
 dw Drive.vars_begin ; Stores in the binary a pointer to the beginning of the Drive variables and the FATFS variables. 
-dw FATFS ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
+dw FATFS.vars_begin ; These pointers are used by Stage 2 to transfer the state to Stage 3 when loading it.
 
 start: {
 	mov sp, 0x7FF0
@@ -104,17 +93,17 @@ start: {
 	; Initialize serial
 	call Serial.Init	
 	
-	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
-	mov word [FATFS.clusterBuffer], FAT16_CLUSTER_BUFFER_ADDR
+	mov word [Drive.bufferPtr], __loader32_file_addr
+	mov word [FATFS.clusterBuffer], __fat16_cluster_buffer_addr
 
 	LOG(."I Loading ZKLOADER.ELF\n")
 	mov si, ."ZKOS/ZKLOADERELF"
-	mov di, STAGE4_FILE_ADDR
+	mov di, __loader32_file_addr
 	
 	call ReadFile
 	LOG(."K Executable loaded.\n")
 	
-	mov word [ELF.fileLocation], STAGE4_FILE_ADDR
+	mov word [ELF.fileLocation], __loader32_file_addr
 	call LoadELF
 	
 	call PrepareLoaderInfo
@@ -129,7 +118,7 @@ ReadFile: {
 	push si
 	call FATFS.LocateFile
 	
-	mov word [Drive.bufferPtr], STAGE4_FILE_ADDR
+	mov word [Drive.bufferPtr], __loader32_file_addr
 	push ax
 	call FATFS.ReadClusterChain	
 ret }
@@ -318,7 +307,7 @@ LoadSegment: {
 	mov si, [p_offset]
 	lea si, [si + bx]
 	
-	mov di, STAGE4_EXEC_ADDR
+	mov di, __loader32_start_addr
 	
 	mov cx, [p_filesz]
 	;rep movsb

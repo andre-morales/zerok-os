@@ -21,7 +21,7 @@ void pciDeviceCallback(const PCI_Device* dev);
 void main() {
 	bool init = loadInitArgs();
 	setupIO();
-	printf("\n-- &bZk&3Loader &eCore32 &cv0.8.2\n");
+	printf("\n-- &bZk&3Loader &eCore32 &cv0.8.3\n");
 	if (!init) {
 		log(LOG_ERROR, "Invalid loader arguments.\n");
 		return;
@@ -48,9 +48,9 @@ void main() {
 	log(LOG_OK,	"Done.\n");
 }
 
-void sleep() {
+void NO_INLINE sleep() {
 	
-	/*uint32_t cycles = 500000000;
+	uint32_t cycles = 500000000;
 
 	__asm volatile(
 		".lbl:		\n\t"
@@ -59,7 +59,7 @@ void sleep() {
 		: 
 		: "c" (cycles)
 		:
-	);*/
+	);
 }
 
 void pciDeviceCallback(const PCI_Device* dev) {

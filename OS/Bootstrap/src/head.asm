@@ -16,9 +16,7 @@
  * -- [0x7C00 - 0x7DFF] Our VBR still loaded
  * -- [0x7E00 - 0x7FFF] Stack
  */
- 
-#define CONSOLE_MIRROR_TO_SERIAL 1
-#define FATX_DEBUG 1
+
 #include "version.h"
 #include <comm/strings.h>
 #include <comm/serial.h>
@@ -76,12 +74,6 @@ start: {
 	call InitDrive
 	call InitFileSystem
 	
-	;0 ..
-	;1 Ok
-	;2 In
-	;3 Wr
-	;4 ER
-	
 	LOG(."I Press any key to load BSTRAP.BIN.\n")
 	call Console.WaitKey
 	call Load_LdrHeadBin
@@ -89,15 +81,17 @@ start: {
 	; Copy all Drive variables to the pointer stored in Stage 3.
 	mov si, Drive.vars_begin
 	mov di, [0x702]
+	
 	mov cx, Drive.vars_end
-	sub cx, Drive.vars_begin
+	sub cx, si
 	rep movsb 
 	
 	; Copy all FATFS variables to the pointer stored in Stage 3.
-	mov si, FATFS
+	mov si, FATFS.vars_begin
 	mov di, [0x704]
+	
 	mov cx, FATFS.vars_end
-	sub cx, FATFS
+	sub cx, si
 	rep movsb 
 	
 	; Check the signature

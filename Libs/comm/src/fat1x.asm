@@ -15,10 +15,10 @@ GLOBAL FATFS.Initialize
 GLOBAL FATFS.LocateFile
 GLOBAL FATFS.ReadClusterChain
 
-GLOBAL FATFS
+GLOBAL FATFS.vars_begin
+GLOBAL FATFS.vars_end
 GLOBAL FATFS.beginningSct
 GLOBAL FATFS.clusterBuffer
-GLOBAL FATFS.vars_end
 GLOBAL FATFS.clusterBits
 GLOBAL FATFS.label
 GLOBAL FATFS.fatSct
@@ -33,6 +33,7 @@ GLOBAL FATFS.bytesPerCluster
 GLOBAL FATFS.logicalSectorsPerFAT
 
 var void FATFS
+var void .vars_begin
 	var void .BPB
 	var short .bytesPerLogicalSector
 	var short .logicalSectorsPerCluster
