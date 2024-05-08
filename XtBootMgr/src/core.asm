@@ -102,20 +102,7 @@ Menu: {
 	
 	MainMenu:
 		ClearScreen(0_110_1111b)
-		
-		mov bx, 00_00h
-		mov ax, 25_17h
-		call Video.DrawBox
-	
-		mov dx, 00_03h
-		call Video.SetCursor
-		
-		CONSOLE_PRINT(."-XtBootMgr v$#VERSION# [Drive 0x")
-		
-		xor ah, ah
-		mov al, [Drive.id]
-		CONSOLE_PRINT_HEX_NUM(ax)
-		CONSOLE_PRINT(."]-")
+		call DrawMenuBox
 	
 	MenuSelect:	
 		call DrawMenu	
@@ -146,71 +133,125 @@ Menu: {
 		jmp MenuSelect
 		
 		.enterKey:
-			mov al, 10 | mul byte [cursor]
-			mov di, ax
-			add di, PARTITION_ARRAY
-			
-			cmp byte [es:di + 0], 05h | jne .L4
-			CONSOLE_PRINT(."\N\N You can't boot an extended partition.")
-			jmp BackToMainMenu
-			
-			.L4: {	
-				push di
-				
-				; Fill 0x7C00 with no-ops.
-				mov di, 0x7C00
-				mov al, 90h
-				mov cx, 512
-				rep stosb
-				
-				; Copy the boot failure handler after the boot sector. If control gets there, this handles it.
-				mov si, BootFailureHandler
-				mov cx, 16
-				rep movsw
-			
-				pop di
-			}
-						
-			CONSOLE_PRINT(."\N\NReading drive...")			
-			; Save ES segment reg
-			push es
-			
-			; Push on the stack the partition starting LBA
-			push word [es:di + 4] | push word [es:di + 2] 
-			
-			; Set ES to 0 in order to Read the MBR to 0000:7C00
-			xor ax, ax
-			mov es, ax
-			mov word [Drive.bufferPtr], 0x7C00
-			call Drive.ReadSector						
-			
-			; Get boot signature
-			mov ax, [es:0x7DFE]
-			
-			; Restore ES segment
-			pop es
-			
-			cmp ax, 0xAA55 | jne .notBootable
-			CONSOLE_PRINT(."\NPress any key to boot...\N")	
-			call Console.WaitKey
-			jmp .chain		
-			
-			.notBootable:
-			CONSOLE_PRINT(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
-			call Console.Getch	
-			cmp ah, 15h | jne BackToMainMenu.clear
-			
-			.chain:
-			ClearScreen(0_000_0111b)
-			
-			mov dl, [Drive.id]
-			jmp 0x0000:0x7C00	
+			xor ah, ah
+			mov al, [cursor]
+			call BootPartition	
+			jmp BackToMainMenu.clear
 		
 		BackToMainMenu:
 			call Console.WaitKey
 			.clear:
 		jmp MainMenu
 }
+
+; Tries to boot a partition given its index
+;
+; Inputs: AX = Partition index
+BootPartition: {
+	; Multiply partition index by 10
+	mov cl, 10
+	mul cl
+	
+	; Set DI to the partition entry
+	mov di, ax
+	add di, [Partitions.entries]
+	
+	; If partition is extended type, it can't be booted
+	cmp byte [es:di + 0], 05h
+	jne .tryBoot
+	
+	CONSOLE_PRINT(."\N\N You can't boot an extended partition.")
+	call Console.WaitKey
+	jmp .end
+	
+	; Step 1: Fill the boot area with no-ops (0x90). After it, copy the boot failure handler
+	; to recover control if the partition boot sector was invalid.
+	.tryBoot: {	
+		push di
+		
+		; Fill 0x7C00 with no-ops.
+		mov di, 0x7C00
+		mov al, 90h
+		mov cx, 512
+		rep stosb
+		
+		; Copy the boot failure handler after the boot sector. If control gets there, this handles it.
+		mov si, BootFailureHandler
+		mov cx, 16
+		rep movsw
+	
+		pop di
+	}
+	
+	; Step 2: Read the boot record to 0x7C00
+	CONSOLE_PRINT(."\N\NReading drive...")			
+	{
+		; Save ES segment register
+		push es
+		
+		; Push on the stack the partition starting LBA
+		push word [es:di + 4]
+		push word [es:di + 2] 
+		
+		; Set ES to 0 in order to Read the MBR to 0000:7C00
+		xor ax, ax
+		mov es, ax
+		mov word [Drive.bufferPtr], 0x7C00
+		call Drive.ReadSector						
+		
+		; Get boot signature on AX
+		mov ax, [es:0x7DFE]
+		
+		; Restore ES segment
+		pop es
+	}
+	
+	; Step 3: Verify the boot signature, wait for user input and perform the jump
+	{
+		cmp ax, 0xAA55
+		jne .notBootable
+		
+		CONSOLE_PRINT(."\NPress any key to boot...\N")	
+		call Console.WaitKey
+		jmp .doChainBoot		
+		
+		; If the signature was invalid, the partition is probably not bootable.
+		; Don't boot if the user presses anything other than Y
+		.notBootable:
+		CONSOLE_PRINT(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
+		call Console.Getch	
+		cmp ah, 15h
+		jne .end
+		
+		; Perform the chain boot. Clear the screen, restore DL and jump
+		.doChainBoot:
+		ClearScreen(0_000_0111b)
+		
+		mov dl, [Drive.id]
+		jmp 0x0000:0x7C00
+	}
+	
+	.end:
+ret }
+
+; Draws fancy menu frame. Does not clear the screen beforehand
+;
+; Destroys: AX, BX, DX
+DrawMenuBox: {
+	mov bx, 00_00h
+	mov ax, 25_17h
+	call Video.DrawBox
+
+	mov dx, 00_03h
+	call Video.SetCursor
+	
+	CONSOLE_PRINT(."-XtBootMgr v$#VERSION# [Drive 0x")
+	
+	xor ah, ah
+	mov al, [Drive.id]
+	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT(."]-") 
+ret }
 
 /* Prints current video mode and number of columns. */
 PrintCurrentVideoMode: {

@@ -60,9 +60,10 @@ Partitions.ReadPartitionMap: {
 	test ax, ax
 	je .readTable
 	
-	; AX is not 0. The read failed somehow.
+	; The read failed somehow.
 	CONSOLE_PRINT(."\NSector read failed. The error was:\N ")
 	
+	; Test possible error conditions
 	cmp ax, 1
 	je .outOfRangeCHS
 	
