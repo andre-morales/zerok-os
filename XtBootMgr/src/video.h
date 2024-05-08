@@ -5,4 +5,5 @@ EXTERN Video.ClearScreen
 EXTERN Video.GetCursor
 EXTERN Video.SetCursor
 EXTERN Video.PrintColor
+EXTERN Video.DrawBox
 #endif

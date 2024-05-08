@@ -8,9 +8,9 @@ var short base
 
 ; Initializes memory allocation system
 ;
-; Inputs: []
-; Outputs: []
-; Destroys: []
+; Inputs: .
+; Outputs: .
+; Destroys: .
 GLOBAL Mem.Init
 Mem.Init: {
 	mov word [base], __alloc_base
@@ -18,10 +18,9 @@ ret }
 
 ; Allocates a memory block
 ;
-; Inputs: [AX = Size]
-; Outputs: [AX = Pointer to memory block]
-; Destroys: []
-
+; Inputs: AX = Size
+; Outputs: AX = Pointer to memory block
+; Destroys: .
 GLOBAL Mem.Alloc
 Mem.Alloc: {
 	push word [base]

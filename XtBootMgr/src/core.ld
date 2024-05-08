@@ -1,3 +1,14 @@
+/**
+ * Author:   André Morales 
+ * Version:  1.1.4
+ * Creation: 05/05/2024
+ * Modified: 08/05/2024
+ *
+ * :: Memory Map ::
+ * -- [0x0500 - 0x0A00] Stack
+ * -- [0x0A00 - 0x1A00] Loaded stage 2
+ * -- [0x2000] Drive buffer
+ */
 OUTPUT_FORMAT(binary)
 
 SECTIONS {

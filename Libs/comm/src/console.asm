@@ -2,9 +2,8 @@
  * Author:   André Morales 
  * Version:  2.02
  * Creation: 06/10/2020
- * Modified: 05/05/2024
+ * Modified: 08/05/2024
  */
-
 #include <strings.h>
 #include <serial.h>
 
@@ -21,7 +20,11 @@ GLOBAL Console.PrintHexNum
 [CPU 8086]
 [BITS 16]
 
-/* Prints a single character that was put into AL */
+; Prints a single character
+;
+; Inputs: AL = Character
+; Outputs: .
+; Destroys: .
 Console.Putch: {
 	push ax | push bx | push dx
 	
@@ -40,6 +43,19 @@ Console.Putch: {
 	int 10h
 	
 	pop dx | pop bx | pop ax
+ret }
+
+; Prints a single character many times
+;
+; Inputs: AL = Character, CL = Count
+; Outputs: .
+; Destroys: CX
+Console.Putnch: {
+	xor ch, ch
+	
+	.printch:
+		call Console.Putch
+	loop .printch
 ret }
 
 Console.FLog: {
@@ -130,14 +146,6 @@ Console.Print: {
 		
 	.end:
 	pop dx | pop cx | pop bx | pop ax
-ret }
-
-Console.Putnch: {
-	xor ch, ch
-	
-	.printch:
-		call Console.Putch
-	loop .printch
 ret }
 
 /* Waits for a key press and stores the key in the AL register. */

@@ -27,8 +27,6 @@ build/mem.o: src/mem.asm mem.h
 	$(PASME) transpile src/mem.asm -to build/mem.nasm -I .
 	$(YASM) build/mem.nasm -f elf -o build/mem.o
 
-
-
 clean:
 	del build\*.* /q
 	

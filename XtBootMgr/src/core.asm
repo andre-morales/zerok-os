@@ -1,19 +1,13 @@
 /**
  * Author:   André Morales 
- * Version:  1.1.1
+ * Version:  1.1.4
  * Creation: 07/10/2020
- * Modified: 05/05/2024
- *
- * :: Memory Map ::
- * -- [0x0500 - 0x0A00] Stack
- * -- [0x0A00 - 0x1A00] Loaded stage 2
- * -- [0x1A00 - 0x1B00] Unitialiazed varible storage
- * -- [0x1B00 - 0x1C00] Partition array
- * -- [0x2000] Generic stuff buffer
+ * Modified: 08/05/2024
  */
 
 #include "version.h"
 #include "video.h"
+#include "partitions.h"
 #include <comm/mem.h>
 #include <comm/strings.h>
 #include <comm/console.h>
@@ -21,7 +15,7 @@
 #include <comm/drive.h>
 
 %define STACK_ADDRESS 0xA00
-%define PARTITION_ARRAY 0x1B00
+%define PARTITION_ARRAY [Partitions.entries]
 
 %macro PrintColor 2
 	mov si, %1
@@ -34,12 +28,8 @@
 	call Video.ClearScreen
 %endmacro
 
-EXTERN Partitions.GetPartTypeName
-
 var short cursor
-var byte partitionMapSize
 var byte[6] partitionSizeStrBuff
-var long extendedPartitionLBA
 
 [SECTION .text]
 [BITS 16]
@@ -49,16 +39,22 @@ db 'Xt' ; Two byte signature at binary beginning.
 
 /* Entry point. */
 Start: {
-	mov sp, 0xA00 ; Readjust stack behind us
-
-	push cs | pop ds        ; Copy CS [Segment 0xA0] to Data Segment
-	xor ax, ax | mov es, ax ; Set ES to 0
+	; Readjust stack behind us
+	mov sp, 0xA00 
 	
-	mov [Drive.id], dl                 ; Save drive number
-	mov [Drive.CHS.bytesPerSector], di ; Save bytes per sector.
+	; Set CS = DS = ES
+	mov ax, cs
+	mov ds, ax
+	mov es, ax
 	
-	sti                                ; Reenable interrupts that were disable back at stage 1.
-
+	; Reenable interrupts
+	sti
+	
+	; Save drive number and bytes per sector discovered in the previous stage
+	mov [Drive.id], dl
+	mov [Drive.CHS.bytesPerSector], di
+	
+	; Print header
 	CONSOLE_PRINT(."\N\n--- Xt Generic Boot Manager ---")
 	CONSOLE_PRINT(."\NVersion: $#VERSION#")
 	
@@ -66,30 +62,36 @@ Start: {
 	mov word [es:0000], DivisionErrorHandler
 	mov word [es:0002], ds
 	
-	; Initialize memy allocation
-	call Mem.Init
-	
-	;mov ax, 4
-	;call Mem.Alloc
-	;CONSOLE_PRINT_HEX_NUM ax
-	
+	; Print video mode and drive geometry
 	call PrintCurrentVideoMode
 	call GetDriveGeometry
 	
+	; Wait for key press to read the partition map
 	CONSOLE_PRINT(."\NPress any key to read the partition map.") 
 	call Console.WaitKey
 	
-	mov di, PARTITION_ARRAY
+	; Allocate 256-byte block to store partition entries, AX points to the memory block
+	call Mem.Init
+	mov ax, 256
+	call Mem.Alloc
+	
+	; Direct drive reading sectors to 0x2000
 	mov word [Drive.bufferPtr], 0x2000
-	call ReadPartitionMap
 	
+	; Read partition map to allocated memory block pointer by ES:DI
+	push ds 
+	pop es
+	mov di, ax
+	call Partitions.ReadPartitionMap
 	CONSOLE_PRINT(."\NPartition map read.")
-	mov ax, di
-	sub ax, PARTITION_ARRAY
+
+	; Print how many entries were read
+	CONSOLE_PRINT(."\nFound ")
+	mov ax, [Partitions.entriesLength]
+	call Console.PrintDecNum
+	CONSOLE_PRINT(." entries.")
 	
-	mov cl, 10 | div cl
-	mov [partitionMapSize], al
-	
+	; Wait for user input before entering the menu
 	CONSOLE_PRINT(."\NPress any key to enter boot select...\N")
 	call Console.WaitKey
 	jmp Menu
@@ -100,15 +102,18 @@ Menu: {
 	
 	MainMenu:
 		ClearScreen(0_110_1111b)
+		
 		mov bx, 00_00h
 		mov ax, 25_17h
-		call drawSquare
+		call Video.DrawBox
 	
-		mov dx, 00_02h | call Video.SetCursor
+		mov dx, 00_03h
+		call Video.SetCursor
 		
 		CONSOLE_PRINT(."-XtBootMgr v$#VERSION# [Drive 0x")
 		
-		xor ah, ah | mov al, [Drive.id]
+		xor ah, ah
+		mov al, [Drive.id]
 		CONSOLE_PRINT_HEX_NUM(ax)
 		CONSOLE_PRINT(."]-")
 	
@@ -125,18 +130,18 @@ Menu: {
 			mov ax, [cursor]
 			test ax, ax | jnz .L3
 			
-			mov al, [partitionMapSize]
+			mov al, [Partitions.entriesLength]
 			
 			.L3:
 			dec ax
-			div byte [partitionMapSize]
+			div byte [Partitions.entriesLength]
 			mov [cursor], ah
 		jmp MenuSelect
 		
 		.downKey:
 			mov ax, [cursor]
 			inc ax
-			div byte [partitionMapSize]
+			div byte [Partitions.entriesLength]
 			mov [cursor], ah
 		jmp MenuSelect
 		
@@ -166,12 +171,26 @@ Menu: {
 				pop di
 			}
 						
-			CONSOLE_PRINT(."\N\NReading drive...")
+			CONSOLE_PRINT(."\N\NReading drive...")			
+			; Save ES segment reg
+			push es
+			
+			; Push on the stack the partition starting LBA
 			push word [es:di + 4] | push word [es:di + 2] 
+			
+			; Set ES to 0 in order to Read the MBR to 0000:7C00
+			xor ax, ax
+			mov es, ax
 			mov word [Drive.bufferPtr], 0x7C00
 			call Drive.ReadSector						
 			
-			cmp word [es:0x7DFE], 0xAA55 | jne .notBootable
+			; Get boot signature
+			mov ax, [es:0x7DFE]
+			
+			; Restore ES segment
+			pop es
+			
+			cmp ax, 0xAA55 | jne .notBootable
 			CONSOLE_PRINT(."\NPress any key to boot...\N")	
 			call Console.WaitKey
 			jmp .chain		
@@ -192,163 +211,6 @@ Menu: {
 			.clear:
 		jmp MainMenu
 }
-
-; void (ES:DI pntrToPartitionArray)
-ReadPartitionMap: {
-	CLSTACK
-	ENTERFN
-	
-	push ds
-
-	; Read MBR (Sector 0)
-	xor ax, ax
-	push ax | push ax
-	call Drive.ReadSector
-	test ax, ax | je .ReadTable ; Did it read properly?
-	
-	; AX is not 0. It failed somehow.
-	CONSOLE_PRINT(."\NSector read failed. The error was:\N ")
-	cmp ax, 1 | je .OutOfRangeCHS
-	CONSOLE_PRINT(."Unknown")
-	jmp .ErrorOut
-	
-	.OutOfRangeCHS:
-	CONSOLE_PRINT(."CHS (Cylinder) address out of range")
-	
-	.ErrorOut:
-	CONSOLE_PRINT(.".\NIgnoring the partitions at this sector.")
-	jmp .End
-	
-	.ReadTable: {	
-		{
-			; Iterate partition table backwards. Since we'll push to the stack and pop the entries later, the 
-			; order will be corrected. We need to save the entries to the stack because we are reading from the
-			; temporary buffer [0x2000], reading another sector will override this area.
-			xor bx, bx
-			mov ds, bx
-			mov si, 0x2000 + 0x1BE + 48 
-			mov cx, 4
-			.SavePartitionEntries:
-				mov al, [ds:si + 4] ; Get partition type
-				test al, al | jnz .storeEntry ; Is entry empty?
-				jmp .endlspe
-				
-				.storeEntry:			
-				; Save total sector count
-				push word [ds:si + 14] ; High
-				push word [ds:si + 12] ; Low
-				
-				; Save starting LBA to stack
-				push word [ds:si + 10] ; High
-				push word [ds:si + 8]  ; Low
-				xor ah, ah | push ax  ; Store the partition type followed by 0 (primary partition)
-				inc bx
-			
-				.endlspe:
-				sub si, 16
-			loop .SavePartitionEntries
-		}
-		
-		{
-			mov ds, [bp - 2]				
-			mov cx, bx
-			test cx, cx | jz .End
-			.LoadPartitionEntries:
-				; Get and store partition type to ES:DI and keep it on BL
-				pop ax | stosw
-				mov bl, al
-				
-				; Get and store LBA to ES:DI.
-				pop ax | stosw ; Low  [DI - 8]
-				pop ax | stosw ; High [DI - 6]
-				
-				; Get and store total sectors.
-				pop ax | stosw ; Low  [DI - 4]
-				pop ax | stosw ; High [DI - 2]
-				
-				cmp bl, 05h | je .isExtended ; Is it and extended partition (CHS)?
-				cmp bl, 0Fh | je .isExtended
-				
-				jmp .endllpe
-				
-				.isExtended:
-				mov dx, [es:di - 6]
-				mov ax, [es:di - 8]
-				mov [extendedPartitionLBA], ax
-				mov [extendedPartitionLBA + 2], dx
-				call ExploreExtendedPartitionChain
-				.endllpe:
-			loop .LoadPartitionEntries			
-		}
-	}
-	
-	.End:
-	LEAVEFN
-}
-
-ExploreExtendedPartitionChain: {
-	push bp
-	mov bp, sp
-	
-	push ax ; [BP - 2]
-	push dx ; [BP - 4]
-	push ds ; [BP - 6]
-	push es ; [BP - 8]
-	push cx ; [BP - 10]
-	
-	push dx | push ax
-	call Drive.ReadSector
-	
-	{
-		xor ax, ax | mov ds, ax
-		mov si, 0x2000 + 0x1BE
-		; -- Read first partition entry --
-		add si, 4
-		lodsb             ; Get partition type
-		mov ah, 1 | stosw ; Store partition type followed by 1 (logical partition)
-		
-		add si, 3
-		lodsw
-		add ax, word [bp - 2]
-		stosw
-		
-		lodsw
-		adc ax, word [bp - 4]
-		stosw
-		
-		movsw
-		movsw
-		
-		; -- Read second partition entry --
-		add si, 4
-		lodsb
-		cmp al, 05h | jne .End ; Is there a link to the next logical partition?
-		
-		{
-			mov es, [bp - 6] ; Put old DS (0xA0) into ES
-			add si, 3
-			lodsw
-			add ax, word [es:extendedPartitionLBA]
-			mov bx, ax
-			
-			lodsw
-			adc ax, word [es:extendedPartitionLBA + 2]
-			
-			mov dx, ax
-			mov ax, bx
-			mov ds, [bp - 6]
-			mov es, [bp - 8]
-			call ExploreExtendedPartitionChain
-		}	
-	}
-	
-	.End:
-	pop cx
-	pop es
-	pop ds
-	mov sp, bp
-	pop bp
-ret }
 
 /* Prints current video mode and number of columns. */
 PrintCurrentVideoMode: {
@@ -425,11 +287,9 @@ DrawMenu: {
 		
 	mov di, PARTITION_ARRAY
 	xor cl, cl
-	cmp cl, [partitionMapSize] | je .End ; If partition map is empty.
+	cmp cl, [Partitions.entriesLength] | je .End ; If partition map is empty.
 	
 	.drawPartition:
-		xor ax, ax | mov es, ax
-		
 		call Video.SetCursor
 		mov bh, ' '  ; (Prefix) = ' '
 		mov bl, 0x6F ; (Color) = White on orange.
@@ -480,65 +340,15 @@ DrawMenu: {
 		add di, 10
 		inc dh
 		inc cx
-	cmp cl, [partitionMapSize] | jne .drawPartition
+	cmp cl, [Partitions.entriesLength] | jne .drawPartition
 
 	.End:
 	pop es
 	mov sp, bp
 	pop bp
 ret }
-	
-drawSquare: {
-	push bp
-	mov bp, sp
-	push ax
-	
-	xor ch, ch
-	
-	; Top box row
-	mov dx, bx
-	call Video.SetCursor
-	
-	CONSOLE_PUTCH(0xC9)
-	CONSOLE_PUTNCH 0xCD, [bp - 1]
-	CONSOLE_PUTCH(0xBB)
-	
-	; Left box column
-	mov dx, bx	
-	mov al, 0xBA
-	
-	mov cl, [bp - 2]
-	.leftC:
-		inc dh
-		call Video.SetCursor	
-		call Console.Putch
-	loop .leftC
-	
-	inc dh
-	call Video.SetCursor	
-	
-	; Bottom box row
-	CONSOLE_PUTCH(0xC8)
-	CONSOLE_PUTNCH 0xCD, [bp - 1]
-	CONSOLE_PUTCH(0xBC)
-	
-	; Right box row
-	mov dx, bx
-	add dl, [bp - 1]
-	inc dl
-	mov al, 0xBA
-	mov cl, [bp - 2]
-	.rightC:
-		inc dh
-		call Video.SetCursor	
-		call Console.Putch
-	loop .rightC	
-	
-	mov sp, bp
-	pop bp
-ret }
 
-/* CHS calculation may fail and throw execution here. */ 
+; A CHS calculation or some division may fail and throw execution here. 
 DivisionErrorHandler: {
 	push bp
 	mov bp, sp
@@ -567,17 +377,22 @@ DivisionErrorHandler: {
 }
 
 
-/* When booting a partition fails. Handlers throw execution here. */
+; When booting a partition fails. Handlers throw execution here.
 BootFailureHandler: {
-	jmp 0x00A0:.L1
+	; Far jump to set the CS selector back to A0
+	jmp 0x00A0:.land
 	
-	.L1:
-	push cs | pop ds
+	.land:
+	; Set DS = CS
+	push cs
+	pop ds
+	
 	CONSOLE_PRINT(."\NXtBootMgr got control back. The bootsector either contains no executable code, or invalid code.\NGoing back to the main menu.")
 	call Console.WaitKey
 	jmp Menu
 }
 
+[SECTION .rodata]
 @rodata:
 
 [SECTION .bss]

@@ -207,6 +207,7 @@ Drive.LBA.GetProperties: {
 	.End:
 ret }
 
+[SECTION .rodata]
 @rodata:
 
 [SECTION .bss]

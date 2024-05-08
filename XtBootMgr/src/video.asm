@@ -1,3 +1,6 @@
+#include <comm/console.h>
+#include <comm/console_macros.h>
+
 [SECTION .text]
 [BITS 16]
 [CPU 8086]
@@ -149,3 +152,85 @@ Video.PrintColor: {
 	pop bx
 	pop ax
 ret }	
+
+; Draw a box with ascii characters on the screen
+;
+; Inputs: BX = Origin X:Y, AX = Box Width:Height
+; Outputs: .
+; Destroys: BX
+GLOBAL Video.DrawBox
+Video.DrawBox: {
+	push bp
+	mov bp, sp
+	
+	; Save some registers
+	push ax ; Save box size (AX) 
+			; [BP - 2] = Height
+			; [BP - 1] = Width
+	push cx 
+	push dx
+	
+	; Set cursor to top box orgin
+	mov dx, bx
+	call Video.SetCursor
+
+	; -- Draw top row with edges
+	mov al, 0xC9
+	call Console.Putch
+	
+	mov al, 0xCD
+	mov cl, [bp - 1]
+	call Console.Putnch
+	
+	mov al, 0xBB
+	call Console.Putch
+	
+	; -- Left column
+	mov dx, bx	
+	mov al, 0xBA
+	
+	; Loop on the box height
+	mov cl, [bp - 2]
+	.leftC:
+		inc dh
+		call Video.SetCursor	
+		call Console.Putch
+	loop .leftC
+	
+	inc dh
+	call Video.SetCursor	
+	
+	; -- Bottom box row with edges
+	mov al, 0xC8
+	call Console.Putch
+	
+	mov al, 0xCD
+	mov cl, [bp - 1]
+	call Console.Putnch
+	
+	mov al, 0xBC
+	call Console.Putch
+	
+	; -- Right column
+	; Set cursor to top right edge
+	mov dx, bx
+	add dl, [bp - 1]
+	inc dl
+	
+	; Loop on the box height
+	mov al, 0xBA
+	mov cl, [bp - 2]
+	.rightC:
+		inc dh
+		call Video.SetCursor	
+		call Console.Putch
+	loop .rightC	
+	
+	; Restore registers
+	pop dx
+	pop cx
+	pop ax
+	
+	mov sp, bp
+	pop bp
+ret }

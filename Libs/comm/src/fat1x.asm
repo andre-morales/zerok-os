@@ -540,7 +540,8 @@ FATFS._readFATSector: {
 
 Halt:
 	int 30h
-
+	
+[SECTION .rodata]
 @rodata:
 
 [SECTION .bss]
