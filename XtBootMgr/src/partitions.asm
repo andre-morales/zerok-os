@@ -2,6 +2,8 @@
 #include <comm/console.h>
 #include <comm/console_macros.h>
 
+EXTERN BootFailureHandler
+
 var long extendedPartitionLBA
 
 GLOBAL Partitions.entriesLength
@@ -275,11 +277,92 @@ ExploreExtendedPartitionChain: {
 	}	
 	
 	.End:
+	; Restore segment registers
 	pop es
 	pop ds
 	
 	mov sp, bp
 	pop bp
+ret }
+
+; Tries to boot a partition given its index
+;
+; Inputs: AX = Partition index
+GLOBAL Partitions.PrepareBoot
+Partitions.PrepareBoot: {
+	; Multiply partition index by 10
+	mov cl, 10
+	mul cl
+	
+	; Set DI to the partition entry
+	mov di, ax
+	add di, [Partitions.entries]
+	
+	; If partition is extended type, it can't be booted
+	cmp byte [es:di + 0], 05h
+	jne .tryBoot
+	
+	; Status code 1: You can't boot an extended partition
+	mov al, 1
+	ret
+	
+	; Step 1: Fill the boot area with no-ops (0x90). After it, copy the boot failure handler
+	; to recover control if the partition boot sector was invalid.
+	.tryBoot: {	
+		push di
+		
+		; Fill 0x7C00 with no-ops.
+		mov di, 0x7C00
+		mov al, 90h
+		mov cx, 512
+		rep stosb
+		
+		; Copy the boot failure handler after the boot sector. If control gets there, this handles it.
+		mov si, BootFailureHandler
+		mov cx, 16
+		rep movsw
+	
+		pop di
+	}
+	
+	; Step 2: Read the boot record to 0x7C00
+	CONSOLE_PRINT(."\n\nReading drive...")			
+	{
+		; Save ES segment register
+		push es
+		
+		; Push on the stack the partition starting LBA
+		push word [es:di + 4]
+		push word [es:di + 2] 
+		
+		; Set ES to 0 in order to Read the MBR to 0000:7C00
+		xor ax, ax
+		mov es, ax
+		mov word [Drive.bufferPtr], 0x7C00
+		call Drive.ReadSector						
+		
+		; Get boot signature on AX
+		mov ax, [es:0x7DFE]
+		
+		; Restore ES segment
+		pop es
+	}
+	
+	; Step 3: Verify the boot signature
+	{
+		cmp ax, 0xAA55
+		jne .notBootable
+		
+		; Status code 0: Success
+		mov al, 0
+		ret
+		
+		; Status code 2: No signature found
+		.notBootable:
+		mov al, 2
+	}
+	
+	.end:
 ret }
 
 [SECTION .rodata]

@@ -1,9 +1,39 @@
 #include <comm/console.h>
 #include <comm/console_macros.h>
 
+GLOBAL Video.currentMode
+var short Video.currentMode
+
+GLOBAL Video.columns
+var short Video.columns
+
 [SECTION .text]
 [BITS 16]
 [CPU 8086]
+
+; Initialize the video system
+;
+; Inputs: .
+; Outputs: .
+; Destroys: AX
+GLOBAL Video.Init
+Video.Init: {
+	; INT 10h : AH=0Fh, Query video mode status
+	mov ah, 0Fh
+	int 10h
+	
+	; Save video mode stored in AL
+	push ax
+	xor ah, ah
+	mov [Video.currentMode], ax
+	
+	; Save column count in AH
+	pop ax
+	mov al, ah
+	xor ah, ah
+	mov [Video.columns], ax
+ret }
+
 
 ; Request the current position of the curson on the screen
 ;
@@ -70,9 +100,9 @@ ret 6 }
 
 ; Clear the entire screen with a color and set the character back at the top left of the screen
 ;
-; Inputs: [AX = Char attribs]
-; Outputs: []
-; Destroys: []
+; Inputs: AX = Char attribs
+; Outputs: .
+; Destroys: AX, DX
 GLOBAL Video.ClearScreen
 Video.ClearScreen: {
 	; Color
@@ -82,11 +112,14 @@ Video.ClearScreen: {
 	xor ax, ax
 	push ax
 	
-	; Destination point (25, 39)
-	mov ax, 18_27h
+	; Destination point (24, columns - 1)
+	mov ah, 24
+	mov al, [Video.columns]
+	dec al
 	push ax
 	call Video.ClearRect
 	
+	; Set cursor to (0, 0)
 	xor dx, dx
 	call Video.SetCursor
 ret }
@@ -234,3 +267,6 @@ Video.DrawBox: {
 	mov sp, bp
 	pop bp
 ret }
+
+[SECTION .bss]
+@bss:

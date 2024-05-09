@@ -15,7 +15,6 @@
 #include <comm/drive.h>
 
 %define STACK_ADDRESS 0xA00
-%define PARTITION_ARRAY [Partitions.entries]
 
 %macro PrintColor 2
 	mov si, %1
@@ -23,10 +22,7 @@
 	call Video.PrintColor
 %endmacro
 
-%macro ClearScreen 1
-	mov ax, %1
-	call Video.ClearScreen
-%endmacro
+GLOBAL BootFailureHandler
 
 var short cursor
 var byte[6] partitionSizeStrBuff
@@ -56,7 +52,7 @@ Start: {
 	
 	; Print header
 	CONSOLE_PRINT(."\N\n--- Xt Generic Boot Manager ---")
-	CONSOLE_PRINT(."\NVersion: $#VERSION#")
+	CONSOLE_PRINT(."\N Version: $#VERSION#")
 	
 	; Set up division error int handler.
 	mov word [es:0000], DivisionErrorHandler
@@ -65,6 +61,13 @@ Start: {
 	; Print video mode and drive geometry
 	call PrintCurrentVideoMode
 	call GetDriveGeometry
+	
+	; Erase our own boot signature to not missidentify partitions
+	push ds
+	xor ax, ax
+	mov ds, ax
+	mov word [0x7C00 + 510], 0x0000
+	pop ds
 	
 	; Wait for key press to read the partition map
 	CONSOLE_PRINT(."\NPress any key to read the partition map.") 
@@ -101,7 +104,9 @@ Menu: {
 	mov word [cursor], 0
 	
 	MainMenu:
-		ClearScreen(0_110_1111b)
+		mov ax, 0_110_1111b
+		call Video.ClearScreen
+		
 		call DrawMenuBox
 	
 	MenuSelect:	
@@ -135,7 +140,7 @@ Menu: {
 		.enterKey:
 			xor ah, ah
 			mov al, [cursor]
-			call BootPartition	
+			call BootPartition
 			jmp BackToMainMenu.clear
 		
 		BackToMainMenu:
@@ -144,189 +149,68 @@ Menu: {
 		jmp MainMenu
 }
 
-; Tries to boot a partition given its index
-;
-; Inputs: AX = Partition index
 BootPartition: {
-	; Multiply partition index by 10
-	mov cl, 10
-	mul cl
+	call Partitions.PrepareBoot	
+
+	cmp al, 1
+	je .extendedPart
 	
-	; Set DI to the partition entry
-	mov di, ax
-	add di, [Partitions.entries]
+	cmp al, 2
+	je .noSignature
 	
-	; If partition is extended type, it can't be booted
-	cmp byte [es:di + 0], 05h
-	jne .tryBoot
-	
-	CONSOLE_PRINT(."\N\N You can't boot an extended partition.")
+	CONSOLE_PRINT(."\NPress any key to boot...\N")	
 	call Console.WaitKey
-	jmp .end
 	
-	; Step 1: Fill the boot area with no-ops (0x90). After it, copy the boot failure handler
-	; to recover control if the partition boot sector was invalid.
-	.tryBoot: {	
-		push di
-		
-		; Fill 0x7C00 with no-ops.
-		mov di, 0x7C00
-		mov al, 90h
-		mov cx, 512
-		rep stosb
-		
-		; Copy the boot failure handler after the boot sector. If control gets there, this handles it.
-		mov si, BootFailureHandler
-		mov cx, 16
-		rep movsw
-	
-		pop di
-	}
-	
-	; Step 2: Read the boot record to 0x7C00
-	CONSOLE_PRINT(."\N\NReading drive...")			
-	{
-		; Save ES segment register
-		push es
-		
-		; Push on the stack the partition starting LBA
-		push word [es:di + 4]
-		push word [es:di + 2] 
-		
-		; Set ES to 0 in order to Read the MBR to 0000:7C00
-		xor ax, ax
-		mov es, ax
-		mov word [Drive.bufferPtr], 0x7C00
-		call Drive.ReadSector						
-		
-		; Get boot signature on AX
-		mov ax, [es:0x7DFE]
-		
-		; Restore ES segment
-		pop es
-	}
-	
-	; Step 3: Verify the boot signature, wait for user input and perform the jump
-	{
-		cmp ax, 0xAA55
-		jne .notBootable
-		
-		CONSOLE_PRINT(."\NPress any key to boot...\N")	
-		call Console.WaitKey
-		jmp .doChainBoot		
-		
-		; If the signature was invalid, the partition is probably not bootable.
-		; Don't boot if the user presses anything other than Y
-		.notBootable:
-		CONSOLE_PRINT(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
-		call Console.Getch	
-		cmp ah, 15h
-		jne .end
-		
-		; Perform the chain boot. Clear the screen, restore DL and jump
-		.doChainBoot:
-		ClearScreen(0_000_0111b)
-		
+	; Perform the chain boot. Clear the screen, restore DL and jump
+	.doChainBoot: {
+		mov ax, 0_000_0111b
+		call Video.ClearScreen
+
 		mov dl, [Drive.id]
 		jmp 0x0000:0x7C00
 	}
 	
+	; If the signature was invalid, the partition is probably not bootable.
+	; Only boot if the user presses Y	
+	.noSignature: {
+		CONSOLE_PRINT(."\NBoot signature not found.\NBoot anyway [Y/N]?\N")	
+		call Console.Getch	
+		cmp ah, 15h
+		je .doChainBoot
+		jmp .end
+	}
+	
+	.extendedPart:
+	CONSOLE_PRINT(."\nYou can't boot an extended partition.")
+	
+	.wait:
+	call Console.WaitKey
+	ret
+	
 	.end:
 ret }
+	
 
-; Draws fancy menu frame. Does not clear the screen beforehand
+; Draw current menu state
 ;
-; Destroys: AX, BX, DX
-DrawMenuBox: {
-	mov bx, 00_00h
-	mov ax, 25_17h
-	call Video.DrawBox
-
-	mov dx, 00_03h
-	call Video.SetCursor
-	
-	CONSOLE_PRINT(."-XtBootMgr v$#VERSION# [Drive 0x")
-	
-	xor ah, ah
-	mov al, [Drive.id]
-	CONSOLE_PRINT_HEX_NUM(ax)
-	CONSOLE_PRINT(."]-") 
-ret }
-
-/* Prints current video mode and number of columns. */
-PrintCurrentVideoMode: {
-	mov ah, 0Fh | int 10h
-	push ax
-	
-	CONSOLE_PRINT(."\NCurrent video mode: 0x")
-	
-	xor ah, ah
-	CONSOLE_PRINT_HEX_NUM(ax)
-	
-	CONSOLE_PRINT(."\NColumns: ")
-	pop ax
-	mov al, ah
-	xor ah, ah
-	call Console.PrintDecNum	
-ret }
-
-GetDriveGeometry: {	
-	call Drive.Init
-	call Drive.CHS.GetProperties
-	call Drive.LBA.GetProperties
-
-	CONSOLE_PRINT(."\N\N[Geometries of drive: ")
-	xor ah, ah
-	mov al, [Drive.id]
-	CONSOLE_PRINT_HEX_NUM(ax)
-	CONSOLE_PRINT(."h] ")
-	
-	CONSOLE_PRINT(."\N-- CHS")
-	CONSOLE_PRINT(."\N Bytes per Sector: ")
-	CONSOLE_PRINT_DEC_NUM [Drive.CHS.bytesPerSector]
-	
-	CONSOLE_PRINT(."\N Sectors per Track: ")
-	xor ah, ah
-	mov al, [Drive.CHS.sectorsPerTrack]
-	call Console.PrintDecNum
-
-	CONSOLE_PRINT(."\N Heads Per Cylinder: ")
-	CONSOLE_PRINT_DEC_NUM [Drive.CHS.headsPerCylinder]
-	
-	CONSOLE_PRINT(."\N Cylinders: ")
-	CONSOLE_PRINT_DEC_NUM [Drive.CHS.cylinders]
-	 
-	CONSOLE_PRINT(."\N-- LBA")
-	
-	mov al, [Drive.LBA.available]
-	test al, al | jz .printLBAProps
-	cmp al, 1   | je .noDriveLBA
-	CONSOLE_PRINT(."\N The BIOS doesn't support LBA.")
-	jmp .End
-	
-	.noDriveLBA:
-	CONSOLE_PRINT(."\N The drive doesn't support LBA.")
-	jmp .End
-	
-	.printLBAProps:
-	CONSOLE_PRINT(."\N Bytes per Sector: ")
-	CONSOLE_PRINT_DEC_NUM [Drive.LBA.bytesPerSector]
-	
-	.End:
-ret }
-	
+;
+;
 DrawMenu: {
 	CLSTACK
 	lvar short sectorsPerMB
-	ENTERFN
 	
+	push bp
+	mov bp, sp
+	sub sp, $stack_vars_size
+		
 	mov word [$sectorsPerMB], 2048
 	push ds
 	push es
 	
-	mov dx, 02_02h | call Video.SetCursor
+	mov dx, 02_02h
+	call Video.SetCursor
 		
-	mov di, PARTITION_ARRAY
+	mov di, [Partitions.entries]
 	xor cl, cl
 	cmp cl, [Partitions.entriesLength] | je .End ; If partition map is empty.
 	
@@ -389,6 +273,91 @@ DrawMenu: {
 	pop bp
 ret }
 
+; Draws fancy menu frame. Does not clear the screen beforehand
+;
+; Destroys: AX, BX, DX
+DrawMenuBox: {
+	; Draw box with origin point to (0, 0), width to columns - 3 and height to 23
+	mov bx, 00_00h
+	mov ah, [Video.columns]
+	sub ah, 3
+	mov al, 23
+	call Video.DrawBox
+
+	; Point cursor to X: 2, Y: 0
+	mov dx, 00_02h
+	call Video.SetCursor
+	
+	; Print header
+	CONSOLE_PRINT(." XtBootMgr v$#VERSION# [Drive 0x")
+	
+	; Print drive number on header
+	xor ah, ah
+	mov al, [Drive.id]
+	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT(."] ") 
+ret }
+
+/* Prints current video mode and number of columns. */
+PrintCurrentVideoMode: {
+	call Video.Init
+
+	CONSOLE_PRINT(."\nCurrent video mode: 0x")
+
+	CONSOLE_PRINT_HEX_NUM word [Video.currentMode]
+	
+	CONSOLE_PRINT(."\nColumns: ")
+	
+	mov ax, [Video.columns]
+	call Console.PrintDecNum	
+ret }
+
+; Print current properties of the drive 
+GetDriveGeometry: {	
+	call Drive.Init
+	call Drive.CHS.GetProperties
+	call Drive.LBA.GetProperties
+
+	CONSOLE_PRINT(."\N\N[Geometries of drive: ")
+	xor ah, ah
+	mov al, [Drive.id]
+	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT(."h] ")
+	
+	CONSOLE_PRINT(."\N-- CHS")
+	CONSOLE_PRINT(."\N Bytes per Sector: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.bytesPerSector]
+	
+	CONSOLE_PRINT(."\N Sectors per Track: ")
+	xor ah, ah
+	mov al, [Drive.CHS.sectorsPerTrack]
+	call Console.PrintDecNum
+
+	CONSOLE_PRINT(."\N Heads Per Cylinder: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.headsPerCylinder]
+	
+	CONSOLE_PRINT(."\N Cylinders: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.CHS.cylinders]
+	 
+	CONSOLE_PRINT(."\N-- LBA")
+	
+	mov al, [Drive.LBA.available]
+	test al, al | jz .printLBAProps
+	cmp al, 1   | je .noDriveLBA
+	CONSOLE_PRINT(."\N The BIOS doesn't support LBA.")
+	jmp .End
+	
+	.noDriveLBA:
+	CONSOLE_PRINT(."\N The drive doesn't support LBA.")
+	jmp .End
+	
+	.printLBAProps:
+	CONSOLE_PRINT(."\N Bytes per Sector: ")
+	CONSOLE_PRINT_DEC_NUM [Drive.LBA.bytesPerSector]
+	
+	.End:
+ret }
+	
 ; A CHS calculation or some division may fail and throw execution here. 
 DivisionErrorHandler: {
 	push bp
@@ -416,7 +385,6 @@ DivisionErrorHandler: {
 	CONSOLE_PRINT(."\NSystem halted.")
 	cli | hlt
 }
-
 
 ; When booting a partition fails. Handlers throw execution here.
 BootFailureHandler: {
