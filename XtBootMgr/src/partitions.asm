@@ -16,13 +16,38 @@ var long Partitions.entries
 [BITS 16]
 [CPU 8086]
 
-; Obtains a descriptive name for a partition type
+; Obtains a descriptive name for a given partition
 ;
-; Inputs: [AL = Partition index byte]
+; Inputs: [AX = Partition index]
 ; Outputs: [SI = String pointer]
 ; Destroys: []
-GLOBAL Partitions.GetPartTypeName
-Partitions.GetPartTypeName: {
+GLOBAL Partitions.GetDescription
+Partitions.GetDescription: {
+	push bx
+	push dx
+	
+	; Set BX = AX * 10 + Partition.entries
+	mov bx, 10
+	mul bx
+	
+	add ax, [Partitions.entries]
+	mov bx, ax
+	
+	; Extract type id 
+	mov al, [bx + 0]
+	call Partitions.GetTypeDescription
+
+	pop dx
+	pop bx
+ret }
+
+; Obtains a descriptive name for a partition type
+;
+; Inputs: [AL = Partition type index byte]
+; Outputs: [SI = String pointer]
+; Destroys: []
+GLOBAL Partitions.GetTypeDescription
+Partitions.GetTypeDescription: {
 	push bx
 	
 	mov bl, al
@@ -299,10 +324,14 @@ Partitions.PrepareBoot: {
 	add di, [Partitions.entries]
 	
 	; If partition is extended type, it can't be booted
-	cmp byte [es:di + 0], 05h
-	jne .tryBoot
+	cmp byte [di + 0], 05h
+	je .extendedPartition
+	cmp byte [di + 0], 0Fh
+	je .extendedPartition
+	jmp .tryBoot
 	
 	; Status code 1: You can't boot an extended partition
+	.extendedPartition
 	mov al, 1
 	ret
 	
@@ -332,8 +361,8 @@ Partitions.PrepareBoot: {
 		push es
 		
 		; Push on the stack the partition starting LBA
-		push word [es:di + 4]
-		push word [es:di + 2] 
+		push word [di + 4]
+		push word [di + 2] 
 		
 		; Set ES to 0 in order to Read the MBR to 0000:7C00
 		xor ax, ax

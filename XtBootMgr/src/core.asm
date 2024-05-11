@@ -38,9 +38,12 @@ Start: {
 	; Readjust stack behind us
 	mov sp, 0xA00 
 	
-	; Set CS = DS = ES
+	; Set DS = CS
 	mov ax, cs
 	mov ds, ax
+	
+	; Set ES = 0
+	xor ax, ax
 	mov es, ax
 	
 	; Reenable interrupts
@@ -63,11 +66,7 @@ Start: {
 	call GetDriveGeometry
 	
 	; Erase our own boot signature to not missidentify partitions
-	push ds
-	xor ax, ax
-	mov ds, ax
-	mov word [0x7C00 + 510], 0x0000
-	pop ds
+	mov word [es:0x7C00 + 510], 0x0000
 	
 	; Wait for key press to read the partition map
 	CONSOLE_PRINT(."\NPress any key to read the partition map.") 
@@ -82,11 +81,19 @@ Start: {
 	mov word [Drive.bufferPtr], 0x2000
 	
 	; Read partition map to allocated memory block pointer by ES:DI
-	push ds 
-	pop es
-	mov di, ax
-	call Partitions.ReadPartitionMap
-	CONSOLE_PRINT(."\NPartition map read.")
+	{
+		push es
+	
+		; Set ES = DS
+		push ds 
+		pop es
+		
+		mov di, ax
+		call Partitions.ReadPartitionMap
+		CONSOLE_PRINT(."\NPartition map read.")
+		
+		pop es
+	}
 
 	; Print how many entries were read
 	CONSOLE_PRINT(."\nFound ")
@@ -103,31 +110,37 @@ Start: {
 Menu: {
 	mov word [cursor], 0
 	
+	; MainMenu routine clears the screen and redraws the decoration before entering the select
+	; loop
 	MainMenu:
 		mov ax, 0_110_1111b
 		call Video.ClearScreen
-		
 		call DrawMenuBox
 	
+	; Menu selection loop
 	MenuSelect:	
 		call DrawMenu	
-			
+		
+		; Wait for user input, looping around if an invalid key was pressed
+		.waitKey:
 		call Console.Getch
 		cmp ah, 48h | je .upKey
 		cmp ah, 50h | je .downKey
 		cmp ah, 1Ch | je .enterKey
-		jmp MenuSelect
+		jmp .waitKey
 		
 		.upKey:
+			; Check if cursor position is 0
 			mov ax, [cursor]
-			test ax, ax | jnz .L3
+			test ax, ax
+			jnz .decr
 			
-			mov al, [Partitions.entriesLength]
+			; Wrap cursor around
+			mov ax, [Partitions.entriesLength]
 			
-			.L3:
+			.decr:
 			dec ax
-			div byte [Partitions.entriesLength]
-			mov [cursor], ah
+			mov [cursor], ax
 		jmp MenuSelect
 		
 		.downKey:
@@ -137,27 +150,36 @@ Menu: {
 			mov [cursor], ah
 		jmp MenuSelect
 		
+		; If enter pressed, try to boot the partition
 		.enterKey:
-			xor ah, ah
-			mov al, [cursor]
+			mov ax, [cursor]
 			call BootPartition
-			jmp BackToMainMenu.clear
-		
-		BackToMainMenu:
-			call Console.WaitKey
-			.clear:
 		jmp MainMenu
 }
 
+; Try to boot the partition pointer by AX
+;
+; Inputs: AX = Partition index
+; Outputs: .
+; Destroys: AX
 BootPartition: {
+	; Prepare boot area and check signatures. Partition index in AX.
 	call Partitions.PrepareBoot	
 
+	; Check error status codes
+	cmp al, 0
+	je .doBoot
+	
 	cmp al, 1
 	je .extendedPart
 	
 	cmp al, 2
 	je .noSignature
 	
+	CONSOLE_PRINT(."\nUnknown error. Aborting.\n")	
+	ret	
+	
+	.doBoot:
 	CONSOLE_PRINT(."\NPress any key to boot...\N")	
 	call Console.WaitKey
 	
@@ -177,98 +199,164 @@ BootPartition: {
 		call Console.Getch	
 		cmp ah, 15h
 		je .doChainBoot
-		jmp .end
+		ret
 	}
 	
 	.extendedPart:
 	CONSOLE_PRINT(."\nYou can't boot an extended partition.")
-	
-	.wait:
 	call Console.WaitKey
-	ret
 	
 	.end:
 ret }
 	
-
-; Draw current menu state
+; Draw menu partition labels
 ;
-;
-;
+; Destroys: .
 DrawMenu: {
 	CLSTACK
-	lvar short sectorsPerMB
 	
+	; Enter function
 	push bp
 	mov bp, sp
 	sub sp, $stack_vars_size
-		
-	mov word [$sectorsPerMB], 2048
-	push ds
+	
+	; Save important registers
 	push es
+	
+	; Set ES = DS
+	push ds 
+	pop es
 	
 	mov dx, 02_02h
 	call Video.SetCursor
 		
-	mov di, [Partitions.entries]
-	xor cl, cl
-	cmp cl, [Partitions.entriesLength] | je .End ; If partition map is empty.
+	xor cx, cx
+	cmp cx, [Partitions.entriesLength]
+	je .end ; If partition map is empty.
 	
 	.drawPartition:
 		call Video.SetCursor
-		mov bh, ' '  ; (Prefix) = ' '
-		mov bl, 0x6F ; (Color) = White on orange.
-		cmp cl, [cursor] | jne .printIndent ; Is this the selected item? If not, skip.
+		call DrawPartitionEntry
 		
-		; Item is selected
-		add bh, '>' - ' ' ; Set prefix char to '>'
-		cmp byte [es:di], 05h | jne .itemBootable ; Is this an extend partition type? If it is, set the bg to blue.
-		mov bl, 0x4F                              ; Unbootable item selected color, white on red.
-		jmp .printIndent
-		
-		.itemBootable:
-		mov bl, 0x1F ; Bootable item selected color, white on blue.		
-		
-		; Print and extra indent if listing primary partitions.
-		.printIndent:
-		cmp byte [es:di + 1], 0 ; Listing primary partitions?
-		je .printTypeName
-		CONSOLE_PUTCH(' ')
-		
-		.printTypeName:	
-		CONSOLE_PUTCH(bh)		
-		mov al, [es:di] ; Partition type
-		call Partitions.GetPartTypeName
-		mov al, bl | call Video.PrintColor
-				
-		PrintColor ." (", bl
-		{
-			push dx | push di
-			
-			mov ax, [es:di + 6]
-			mov dx, [es:di + 8]
-			div word [$sectorsPerMB]
-			
-			mov si, partitionSizeStrBuff
-			mov es, [bp - 4] ; Set ES to DS
-			mov di, si
-			call Strings.IntToStr
-			
-			mov al, bl
-			call Video.PrintColor
-			
-			pop di | pop dx
-		}
-		
-		PrintColor ." MiB)", bl
-		
-		add di, 10
 		inc dh
 		inc cx
-	cmp cl, [Partitions.entriesLength] | jne .drawPartition
+	cmp cx, [Partitions.entriesLength] | jne .drawPartition
 
-	.End:
+	.end:
 	pop es
+	
+	mov sp, bp
+	pop bp
+ret }
+
+; Inputs: CX = Partition index
+DrawPartitionEntry: {
+	CLSTACK
+	lvar short sectorsPerMB
+	lvar short partition
+	lvar short prefix
+	
+	; Enter function
+	push bp
+	mov bp, sp
+	sub sp, $stack_vars_size
+	
+	; Save registers
+	push cx
+	push dx
+
+	mov word [$sectorsPerMB], 2
+	mov word [$partition], cx
+	mov byte [$prefix], ' '
+	
+	; Set DI = Partitions.entries + CX * 10
+	{
+		push dx
+	
+		mov ax, 10
+		mul cx
+		add ax, [Partitions.entries]
+		mov di, ax
+	
+		pop dx
+	}
+	
+	; Set color to White on orange.
+	mov byte [Video.textColor], 0x6F 
+	
+	; If this is not the selected entry, jump to the printing already.
+	cmp cl, [cursor]
+	jne .printIndent 
+	
+	; Determine color and prefix of a selected entry
+	{
+		mov byte [$prefix], '>'
+		
+		; Is this an extend partition type? If it is, set the bg red.
+		cmp byte [di], 05h
+		je .unbootableItem 
+		cmp byte [di], 0Fh
+		je .unbootableItem
+		
+		; Bootable item selected. Set color to white on blue.
+		mov word [Video.textColor], 0x1F
+		jmp .printIndent
+		
+		; Unbootable item selected. Set color to white on red.    
+		.unbootableItem:
+		mov word [Video.textColor], 0x4F
+	}
+	
+	; Print an extra indent if listing logical partitions.
+	.printIndent: {
+		; Check if primary partition type
+		cmp byte [di + 1], 0
+		je .printTypeName
+		
+		; Print two-space indent
+		mov al, ' '
+		call Console.Putch
+		call Console.Putch
+	}
+	
+	.printTypeName:	{
+		; Print prefix. A ' ' or a '>' if the partition is selected or not
+		mov al, [$prefix]
+		call Console.Putch		
+		
+		; Print partition type name
+		mov ax, [$partition]
+		call Partitions.GetDescription
+		call Video.PrintColor
+	}
+	
+	; Print partition size in between ()
+	{
+		mov si, ." ("
+		call Video.PrintColor
+		
+		; Divide sector count by sectorsPerMB value
+		mov ax, [di + 6]
+		mov dx, [di + 8]
+		div word [$sectorsPerMB]
+		
+		; Convert number to string in DI
+		mov si, partitionSizeStrBuff
+		xchg si, di
+		call Strings.IntToStr
+		
+		xchg si, di
+		call Video.PrintColor
+		
+		mov si, ." KiB)"
+		call Video.PrintColor
+	}
+	
+	; Restore registers
+	pop dx
+	pop cx
+	
+	; Leave function
 	mov sp, bp
 	pop bp
 ret }
@@ -294,7 +382,7 @@ DrawMenuBox: {
 	; Print drive number on header
 	xor ah, ah
 	mov al, [Drive.id]
-	CONSOLE_PRINT_HEX_NUM(ax)
+	CONSOLE_PRINT_HEX_NUM ax
 	CONSOLE_PRINT(."] ") 
 ret }
 

@@ -10,4 +10,5 @@ EXTERN Video.DrawBox
 
 EXTERN Video.currentMode
 EXTERN Video.columns
+EXTERN Video.textColor
 #endif

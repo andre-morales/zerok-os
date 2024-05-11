@@ -7,6 +7,9 @@ var short Video.currentMode
 GLOBAL Video.columns
 var short Video.columns
 
+GLOBAL Video.textColor
+var short Video.textColor
+
 [SECTION .text]
 [BITS 16]
 [CPU 8086]
@@ -32,6 +35,9 @@ Video.Init: {
 	mov al, ah
 	xor ah, ah
 	mov [Video.columns], ax
+	
+	; Gray on black
+	mov word [Video.textColor], 0x07
 ret }
 
 
@@ -126,9 +132,9 @@ ret }
 
 ; Print a string with a color attribute
 ;
-; Inputs: [SI = String, AL = Color]
-; Outputs: []
-; Destroys: [SI]
+; Inputs: SI = String
+; Outputs: .
+; Destroys: SI
 GLOBAL Video.PrintColor
 Video.PrintColor: {
 	push ax
@@ -136,18 +142,11 @@ Video.PrintColor: {
 	push cx
 	push dx
 	
-	; Save color
-	xor bh, bh
-	mov bl, al
-	push bx
-	
 	; Get cursor position
 	mov ah, 03h
 	xor bh, bh
 	int 10h
 
-	pop bx ; Get color back
-	
 	.char:
 		lodsb
 		test al, al
@@ -160,6 +159,8 @@ Video.PrintColor: {
 		
 		; Print only at cursor position with color
 		mov ah, 09h
+		xor bh, bh
+		mov bl, [Video.textColor]
 		mov cx, 1
 		int 10h
 		

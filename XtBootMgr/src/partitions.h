@@ -1,7 +1,8 @@
 #ifndef PARTITIONS_H
 #define PARTITIONS_H 1
 EXTERN Partitions.PrepareBoot
-EXTERN Partitions.GetPartTypeName
+EXTERN Partitions.GetTypeDescription
+EXTERN Partitions.GetDescription
 EXTERN Partitions.ReadPartitionMap
 
 EXTERN Partitions.entries
