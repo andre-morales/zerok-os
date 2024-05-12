@@ -22,10 +22,10 @@
 	call Video.PrintColor
 %endmacro
 
+EXTERN __data_segment
 GLOBAL BootFailureHandler
 
 var short cursor
-var byte[6] partitionSizeStrBuff
 
 [SECTION .text]
 [BITS 16]
@@ -39,7 +39,7 @@ Start: {
 	mov sp, 0xA00 
 	
 	; Set DS = CS
-	mov ax, cs
+	mov ax, __data_segment
 	mov ds, ax
 	
 	; Set ES = 0
@@ -80,18 +80,18 @@ Start: {
 	; Direct drive reading sectors to 0x2000
 	mov word [Drive.bufferPtr], 0x2000
 	
-	; Read partition map to allocated memory block pointer by ES:DI
-	{
+	; Read partition map to allocated memory block pointer
+	{	
+		; Save ES
 		push es
 	
-		; Set ES = DS
-		push ds 
-		pop es
-		
+		; Set ES:DI = DS:AX
+		push ds | pop es	
 		mov di, ax
 		call Partitions.ReadPartitionMap
 		CONSOLE_PRINT(."\NPartition map read.")
 		
+		; Restore ES
 		pop es
 	}
 
@@ -220,19 +220,13 @@ DrawMenu: {
 	mov bp, sp
 	sub sp, $stack_vars_size
 	
-	; Save important registers
-	push es
-	
-	; Set ES = DS
-	push ds 
-	pop es
-	
 	mov dx, 02_02h
 	call Video.SetCursor
-		
+	
+	; If partition map is empty.
 	xor cx, cx
 	cmp cx, [Partitions.entriesLength]
-	je .end ; If partition map is empty.
+	je .end
 	
 	.drawPartition:
 		call Video.SetCursor
@@ -240,11 +234,11 @@ DrawMenu: {
 		
 		inc dh
 		inc cx
-	cmp cx, [Partitions.entriesLength] | jne .drawPartition
+	cmp cx, [Partitions.entriesLength]
+	jne .drawPartition
 
 	.end:
-	pop es
-	
+	; Leave function
 	mov sp, bp
 	pop bp
 ret }
@@ -255,6 +249,7 @@ DrawPartitionEntry: {
 	lvar short sectorsPerMB
 	lvar short partition
 	lvar short prefix
+	lvar char[8] sizeStrBuffer
 	
 	; Enter function
 	push bp
@@ -340,13 +335,23 @@ DrawPartitionEntry: {
 		mov dx, [di + 8]
 		div word [$sectorsPerMB]
 		
-		; Convert number to string in DI
-		mov si, partitionSizeStrBuff
-		xchg si, di
-		call Strings.IntToStr
+		; Convert number to string in ES:DI = DS:DI
+		push ds 
+		push es
 		
-		xchg si, di
+		; Set DS, ES = SS
+		mov dx, ss
+		mov ds, dx
+		mov es, dx
+		
+		lea di, [$sizeStrBuffer]
+		call Strings.IntToStr
+
+		mov si, di
 		call Video.PrintColor
+		
+		pop es
+		pop ds
 		
 		mov si, ." KiB)"
 		call Video.PrintColor

@@ -12,6 +12,10 @@
 OUTPUT_FORMAT(binary)
 
 SECTIONS {
+	__code_segment = 0xA0;
+	__data_segment = 0xA0;
+	__stack_segment = 0x00;
+
 	.text 0x0000 : {
 		*(.text)
 	}

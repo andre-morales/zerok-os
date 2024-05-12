@@ -6,9 +6,10 @@ GLOBAL Strings.HexToStr
 
 ; Turns a 16-bit integer into a string.
 ; The number is in the AX register.
-; [AX] = Number
-; [ES:DI] = Pointer to where a null-terminated string will be stored.
-; Preserves everything.
+; 
+; Inputs: AX = Number, ES:DI = Pointer to where a null-terminated string will be stored.
+; Outputs: .
+; Destroys: .
 Strings.IntToStr: {
 	push cx
 	push dx

@@ -119,19 +119,19 @@ Partitions.ReadPartitionMap: {
 			mov cx, 4
 			.processMBREntry:
 				; Get partition type
-				mov al, [ds:si + 4] 
+				mov al, [si + 4] 
 				
 				; If the partition is empty, skip it
 				test al, al
 				jz .endlspe
 				
 				; Save total sector count
-				push word [ds:si + 14] ; High
-				push word [ds:si + 12] ; Low
+				push word [si + 14] ; High
+				push word [si + 12] ; Low
 				
 				; Save starting LBA to stack
-				push word [ds:si + 10] ; High
-				push word [ds:si + 8]  ; Low
+				push word [si + 10] ; High
+				push word [si + 8]  ; Low
 				
 				; Store the partition type followed by a 0, indicating it is a primary partition
 				xor ah, ah

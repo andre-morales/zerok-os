@@ -1,6 +1,8 @@
 #include <comm/console.h>
 #include <comm/console_macros.h>
 
+EXTERN __data_segment
+
 GLOBAL Video.currentMode
 var short Video.currentMode
 
@@ -132,7 +134,7 @@ ret }
 
 ; Print a string with a color attribute
 ;
-; Inputs: SI = String
+; Inputs: DS:SI = String
 ; Outputs: .
 ; Destroys: SI
 GLOBAL Video.PrintColor
@@ -141,6 +143,10 @@ Video.PrintColor: {
 	push bx
 	push cx
 	push dx
+	push es
+	
+	mov ax, __data_segment
+	mov es, ax
 	
 	; Get cursor position
 	mov ah, 03h
@@ -160,7 +166,7 @@ Video.PrintColor: {
 		; Print only at cursor position with color
 		mov ah, 09h
 		xor bh, bh
-		mov bl, [Video.textColor]
+		mov bl, [es:Video.textColor]
 		mov cx, 1
 		int 10h
 		
@@ -181,6 +187,7 @@ Video.PrintColor: {
 	jmp .char
 	
 	.end:
+	pop es
 	pop dx
 	pop cx
 	pop bx
