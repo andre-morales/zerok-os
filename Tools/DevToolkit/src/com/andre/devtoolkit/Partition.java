@@ -6,19 +6,21 @@ import java.io.File;
  *
  * @author Andre
  */
-public class DiskPartition {
+public class Partition {
 	private final File disk;
-	private final int id;
-	private final PartitionType type;
-	private final int typeId;
-	private int firstSector;
+	private final int index;
+	private PartitionType type;
+	private int typeId;
+	private long firstSector;
 	private int sizeInSectors;
 	private boolean isLogicalPartition;
 	
-	DiskPartition(int id, File disk, byte[] entry, int offset) {
-		this.id = id;
+	public Partition(int id, File disk) {
+		this.index = id;
 		this.disk = disk;
-		
+	}
+
+	public void fromMBR(byte[] entry, int offset) {
 		this.typeId = entry[offset + 0x04] & 0xFF;
 		type = PartitionType.fromByteId(typeId);
 		if (this.typeId == 0) return;
@@ -29,12 +31,24 @@ public class DiskPartition {
 		int start = Numbers.byteArrayToInt(entry, offset + 0x08);
 		this.firstSector = start;
 	}
-
+	
+	public void fromEBR(long ebrLBA, byte[] entry, int offset) {
+		fromMBR(entry, offset);
+		if (this.typeId == 0) return;
+		
+		this.isLogicalPartition = true;
+		this.firstSector += ebrLBA;
+	}
+	
+	public int getIndex() {
+		return index;
+	}
+	
 	public File getDisk() {
 		return disk;
 	}
 	
-	public int getFirstSector() {
+	public long getFirstSector() {
 		return firstSector;
 	}
 	
@@ -42,7 +56,19 @@ public class DiskPartition {
 		return type;
 	}
 	
-	private String getSizeDescription() {
+	public int getTypeId() {
+		return typeId;
+	}
+	
+	public boolean isLogical() {
+		return isLogicalPartition;
+	}
+	
+	public boolean isExtended() {
+		return type.isExtended();
+	}
+	
+	public String getSizeString() {
 		int sizeInKB = sizeInSectors / 2;
 		if (sizeInKB < 8192) {
 			return sizeInKB + " KiB";
@@ -61,14 +87,11 @@ public class DiskPartition {
 		return type.description;
 	}
 	
-	private boolean isLogical() {
-		return isLogicalPartition;
-	}
-	
 	@Override
 	public String toString() {
 		var typeStr = getTypeDescription();
-		var sizeStr = getSizeDescription();
-		return String.format("[%d] 0x%02X='%s' : %s : 0x%02X", id, typeId, typeStr, sizeStr, firstSector);
+		var sizeStr = getSizeString();
+		
+		return String.format("[%d] 0x%02X='%s' : %s : 0x%02X", index, typeId, typeStr, sizeStr, firstSector);
 	}
 }

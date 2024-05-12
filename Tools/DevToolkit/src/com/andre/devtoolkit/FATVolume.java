@@ -6,16 +6,49 @@ import java.io.File;
  *
  * @author Andre
  */
-public class FAT16 {
+public class FATVolume {
 
-	private final DiskPartition partition;
+	private final Partition partition;
 	private final int reservedSectors;
+	private final int totalLogicalSectors;
 	
-	public FAT16(DiskPartition partition) {
-		if (partition.getType() != PartitionType.FAT16B_LBA) throw new RuntimeException("Partition is not of FAT16 type.");
+	// Cluster size in logical sectors
+	private final int clusterSize;
+	
+	private final int logicalSectorSize;
+	
+	private final int totalClusters;
+	
+	private final FATType fatType;
+	
+	public FATVolume(Partition partition) {
+		if (!isPartitionFAT(partition)) throw new RuntimeException("Partition is not of FAT type.");
 		this.partition = partition;
 		
-		reservedSectors = getReservedSectorCount();
+		// Read BIOS parameter block
+		var offset = partition.getFirstSector() * 0x200 + 0x0B;
+		byte[] bpb = Burner.readBytes(partition.getDisk(), offset, 13);
+		
+		// Read properties
+		logicalSectorSize = Numbers.byteArrayToShort(bpb, 0x00);
+		reservedSectors = Numbers.byteArrayToShort(bpb, 0x03);
+		totalLogicalSectors = Numbers.byteArrayToShort(bpb, 0x08);
+		clusterSize = bpb[0x02] & 0xFF;
+		totalClusters = totalLogicalSectors / clusterSize;
+		
+		// Can't deal with sectors other than 512 bytes in size
+		assert logicalSectorSize == 512;
+		
+		assert totalClusters > 0;
+		
+		// Determine fat type based on cluster amount
+		if (totalClusters <= 4084) {
+			fatType = FATType.FAT12;
+		} else if (totalClusters <= 65524) {
+			fatType = FATType.FAT16;
+		} else {
+			fatType = FATType.FAT32;
+		}
 	}
 		
 	public void burnVBR(File input, int inputOffset, long inputSize) {
@@ -50,7 +83,7 @@ public class FAT16 {
 		// File body
 		Burner.transfer(input, inputOffset, partition.getDisk(), diskOffset, inputSize);
 	}
-	
+		
 	private void expandReservedSectors(int sectors) {
 		throw new CLIException("Reserved sector expansion not implemented yet.");
 		
@@ -65,9 +98,14 @@ public class FAT16 {
 		}*/
 	}
 	
-	private int getReservedSectorCount() {
+	/*private int getReservedSectorCount() {
 		var bytes = Burner.readBytes(partition.getDisk(), partition.getFirstSector() * 0x200 + 0x0E, 2);
 		return Numbers.byteArrayToShort(bytes, 0);
+	}*/
+	
+	public static boolean isPartitionFAT(Partition part) {
+		if (part.getType() == PartitionType.FAT_1X_LBA) return true;
+		return false;
 	}
 	
 	private static long capInputSize(File input, long size) {
@@ -75,5 +113,9 @@ public class FAT16 {
 		
 		if (size < 0) return input.length();
 		return Math.min(input.length(), size);
+	}
+
+	public enum FATType {
+		NOT_FAT, FAT12, FAT16, FAT32
 	}
 }

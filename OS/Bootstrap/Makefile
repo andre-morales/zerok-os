@@ -33,7 +33,7 @@ boot_lba: src/boot.asm
 	$(PASME) transpile src/boot.asm -D LBA_AVAILABLE -to build/int/boot.nasm $(PT_FLAGS)
 	$(YASM) build/int/boot.nasm -f elf -o build/int/boot.o $(PA_FLAGS)
 	$(LD) build/int/boot.o -T src/boot.ld -o build/bin/boot.img
-	$(DEVTK) burn-vbr build/bin/boot.img -to "$(TestDisk)" -partition 0
+	$(DEVTK) burn-vbr build/bin/boot.img -to "$(TestDisk)" -partition 1
 
 # -- Boot [CHS] --
 boot_chs: src/boot.asm 
@@ -42,14 +42,14 @@ boot_chs: src/boot.asm
 	$(PASME) transpile src/boot.asm -to build/int/boot.nasm $(PT_FLAGS)
 	$(YASM) build/int/boot.nasm -f elf -o build/int/boot.o $(PA_FLAGS)
 	$(LD) build/int/boot.o -T src/boot.ld -o build/bin/boot.img
-	$(DEVTK) burn-vbr build/bin/boot.img -to "${TestDisk}" -partition 0
+	$(DEVTK) burn-vbr build/bin/boot.img -to "${TestDisk}" -partition 1
 
 # -- Head --
 head: src/head.asm
 	$(PASME) transpile src/head.asm -to build/int/head.nasm $(PT_FLAGS)
 	$(YASM) build/int/head.nasm -f elf -o build/int/head.o $(PA_FLAGS)
 	$(LD) build/int/head.o $(COMM)/strings.o $(COMM)/serial.o $(COMM)/console.o $(COMM)/drive.o $(COMM)/fat1x.o -T src/head.ld -o build/bin/head.img
-	$(DEVTK) burn-reserved-sectors build/bin/head.img -to "${TestDisk}" -partition 0
+	$(DEVTK) burn-reserved-sectors build/bin/head.img -to "${TestDisk}" -partition 1
 	
 # -- Boostrap --
 bstrap: src/bootstrap.asm

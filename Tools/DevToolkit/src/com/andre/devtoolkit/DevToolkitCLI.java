@@ -14,15 +14,16 @@ import java.util.Scanner;
  * @version 1.1.0
  */
 public class DevToolkitCLI {
-	public static final String VERSION_STR = "0.1.3";
+	public static final String VERSION_STR = "0.1.4";
 	/**
 	 * Runs DevToolkit with CLI arguments
 	 * 
 	 * @param args Arguments.
 	 */
 	public void run(String[] args) {	
+		printHeader();
+		
 		if (args.length == 0) {
-			printHeader();
 			System.out.println("Nothing to do here. To view a list of possible commands, run 'devtk help'.");
 			return;
 		}
@@ -152,7 +153,7 @@ public class DevToolkitCLI {
 		// Open disk (output file) and obtain the partition indexed
 		var disk = new Disk(new File(output));		
 		var partition = disk.listPartitions().get(partitionNumber);
-		var fat16 = new FAT16(partition);
+		var fat16 = new FATVolume(partition);
 		
 		long firstByte = (partition.getFirstSector()) * 0x200L;
 		
@@ -201,7 +202,7 @@ public class DevToolkitCLI {
 		// Open disk (output file) and obtain the partition indexed
 		var disk = new Disk(new File(output));		
 		var partition = disk.listPartitions().get(partitionNumber);
-		var fat16 = new FAT16(partition);
+		var fat16 = new FATVolume(partition);
 		
 		long firstByte = (partition.getFirstSector() + 1) * 0x200L;
 		System.out.printf("Burning '%s'[0x%X] to '%s'[0x%X -- PART %d]\n", input, inputOffset, output, firstByte, partitionNumber);
@@ -326,9 +327,29 @@ public class DevToolkitCLI {
 		if (diskPathArg == null) throw new CLIException("No disk was specified!");
 		
 		var partitions = new Disk(new File(diskPathArg)).listPartitions();
-		for (var p : partitions) {
-			System.out.println(p);
+		
+		var table = new StringTable(6);
+		table.addRow("", "Kind", "TC", "Description", "Size", "LBA");
+		table.setColumnAlignment(4, StringTable.Alignment.RIGHT);
+		for (int i = 0; i < partitions.size(); i++) {
+			var p = partitions.get(i);
+			if (p == null) continue;
+			
+			var id = i + ":";
+			var kind = (p.isExtended()) ? "Extended" : (p.isLogical() ? "Logical" : "Primary");
+			var typeCode = String.format("%02Xh", p.getTypeId());
+			var typeDesc = p.getType().description;
+			var size = p.getSizeString();
+			var firstSector = String.format("%04Xh", p.getFirstSector());
+			table.addRow(id, kind, typeCode, typeDesc, size, firstSector);
 		}
+		
+		System.out.println(table.toString());
+		
+		/*for (var p : partitions) {
+			//if (p.isLogical()) System.out.print("    ");
+			System.out.println(p);
+		}*/
 	}
 	
 	/**

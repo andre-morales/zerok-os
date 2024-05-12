@@ -9,7 +9,7 @@ import java.util.Arrays;
 public enum PartitionType {
 	UNKNOWN(-1, "Unknown"),
 	EMPTY(0, "Empty"),
-	FAT16B_LBA(0x0E, "FAT 16B (LBA)"),
+	FAT_1X_LBA(0x0E, "FAT 1X (LBA)"),
 	EXTENDED_LBA(0x0F, "Extended (LBA)");
 	
 	public final int typeId;
