@@ -31,6 +31,8 @@ public class Preprocessor {
 			lines.add(new Line(str, n));
 		}
 		
+		r.close();
+
 		return lines;
 	}
 	

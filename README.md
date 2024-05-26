@@ -57,4 +57,4 @@ DevTK's features:
 - Writing code to _VBRs_ and their reserved sectors for installing OSes.
 
 ### :hammer: GCC
-**ZeroK** requires a custom-built **GCC** targeting the *i386-elf* platform for its C code. Build instructions can be found under ```/Tools/```
+**ZeroK** requires a custom-built **GCC** targeting the *i386-elf* platform for its C code. Build instructions can be found under ```/Tools/GCC```
